@@ -17,6 +17,8 @@ GROUPS = {
 
 
 def load_calibrated_projection(model, args):
+    if model.config.text.encoder_type != "smoothspike_bert":
+        raise ValueError("SmoothSpike projection initialization cannot be applied to ANN BERT")
     payload = torch.load(args.text_projection_init, map_location="cpu", weights_only=False)
     if payload.get("checkpoint_kind") != PROJECTION_KIND:
         raise ValueError("Only the common-pretraining projection artifact is allowed")
@@ -56,13 +58,16 @@ def joint_scope(model, args):
         raise ValueError("Joint stage requires fresh initialization and only a frozen text backbone")
     if model.config.vision.frozen or not model.config.text.frozen:
         raise ValueError("Incorrect vision/text gradient configuration")
-    frozen = [name for name, p in model.named_parameters() if not p.requires_grad]
+    # DINOv3's unused masked-image token is frozen by the existing vision adapter.
+    # It is not part of the policy's forward path; all used vision weights train.
+    unused = {"vision_encoder.backbone.embeddings.mask_token"} if model.config.vision.encoder_type == "dinov3" else set()
+    frozen = [name for name, p in model.named_parameters() if not p.requires_grad and name not in unused]
     if not frozen or any(not name.startswith("text_encoder.bert.") for name in frozen):
-        raise RuntimeError("A module other than the text backbone is frozen")
+        raise RuntimeError("A used module other than the text backbone is frozen")
     if any(p.requires_grad for p in model.text_encoder.bert.parameters()):
-        raise RuntimeError("SmoothSpike backbone must remain frozen")
+        raise RuntimeError("Text backbone must remain frozen")
     groups = {
-        group: [(name, p) for name, p in model.named_parameters() if name.startswith(prefix)]
+        group: [(name, p) for name, p in model.named_parameters() if name.startswith(prefix) and name not in unused]
         for group, prefix in GROUPS.items()
     }
     if any(not values or any(not p.requires_grad for _, p in values) for values in groups.values()):

@@ -662,8 +662,10 @@ def train_model():
                 print("common-pretraining calibrated projection:", json.dumps(projection_metadata), flush=True)
         if args.joint_scope_audit:
             from .joint_scope import check_preload, joint_scope
-            if not args.text_projection_init or not args.require_feature_enhancer_preload:
-                raise ValueError("Joint stage requires complete common initialization and calibrated projection")
+            if not args.require_feature_enhancer_preload or not args.load_text_projection_from_init:
+                raise ValueError("Joint stage requires complete common GroundingDINO initialization")
+            if args.text_encoder_type == "smoothspike_bert" and not args.text_projection_init:
+                raise ValueError("SmoothSpike joint stage requires a calibrated projection")
             check_preload(model, fe_report)
             joint_groups = joint_scope(model, args)
             if get_latest_checkpoint(args.checkpoint_dir, args.checkpoint_prefix) is not None:

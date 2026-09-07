@@ -15,6 +15,8 @@ from experiments.libero.settings import (
     WORK, CODE, ROOT, CONTROL, RUN, CALIBRATION, PREFLIGHT, EVALUATION,
     PYTHON, BERT, DINO, SMOOTH, VISION, TEACHER, INIT, DATASETS,
     SUITES, GPU_IDS, GPUS, LIBERO_ROOT, LIBERO_CONFIG,
+    MODULES, VISION_TYPE, TEXT_TYPE, CROSS_TYPE, BATCH_SIZE, GRAD_ACCUM,
+    GLOBAL_BATCH, MAX_STEPS, SEED, EVAL_TRIALS, CHECKPOINT_PREFIX,
 )
 
 
@@ -74,34 +76,42 @@ def run_command(command,log,exit_file,env,timeout):
 
 
 def training_arguments(code,run):
-    return [
+    arguments = [
         "--dataset_dir",DATASETS[0],"--dataset_dirs",",".join(DATASETS),"--dataset_format","lerobot",
         "--lerobot_gripper_convention","binary_open","--normalize_binary_gripper","false",
         "--stats_path",str(code/"experiments/libero/configs/libero_all4_stats.json"),
         "--stats_key","libero_all4_no_noops",
         "--text_layout_path",str(code/"experiments/libero/configs/online_text_layout.json"),
         "--dinov3_path",DINO,"--bert_path",BERT,"--no_allow_hf_download",
-        "--text_encoder_type","smoothspike_bert","--text_model_path",SMOOTH,"--text_timesteps","4",
+        "--text_encoder_type",TEXT_TYPE,"--text_model_path",SMOOTH if TEXT_TYPE == "smoothspike_bert" else BERT,
+        "--text_timesteps","4" if TEXT_TYPE == "smoothspike_bert" else "1",
         "--text_mask_version","legacy","--text_sentence_mask_version","legacy",
         "--text_head_mask_version","corrected","--teacher_text_head_mask_version","corrected",
-        "--text_projection_init",str(CALIBRATION/"text_projection.pth"),"--joint_scope_audit",
-        "--vision_encoder_type","sdtv3_19m","--vision_model_path",VISION,
-        "--vision_pretrained_checkpoint",VISION,
-        "--vision_model_source_path",str(code/"third_party/Spike-Driven-Transformer-V3/SDT_V3/Classification/Model_Base/models.py"),
-        "--vision_image_size","224","--vision_output_grid_size","14",
-        "--cross_attention_type","spike_sdsa","--cross_timesteps","4","--cross_gradient_checkpointing",
+        "--joint_scope_audit",
+        "--vision_encoder_type",VISION_TYPE,"--vision_model_path",VISION if VISION_TYPE == "sdtv3_19m" else DINO,
+        "--vision_image_size","224" if VISION_TYPE == "sdtv3_19m" else "256",
+        "--vision_output_grid_size","14",
+        "--cross_attention_type",CROSS_TYPE,"--cross_timesteps","4","--cross_gradient_checkpointing",
         "--pretrained_init_ckpt",INIT,"--teacher_checkpoint",TEACHER,
         "--distill_feature_weight","0.1","--distill_action_weight","0.1","--distill_text_weight","0",
-        "--checkpoint_dir",str(run/"checkpoints"),"--checkpoint_prefix","spike_cross_joint",
-        "--batch_size","128","--grad_accum_steps","1",
+        "--checkpoint_dir",str(run/"checkpoints"),"--checkpoint_prefix",CHECKPOINT_PREFIX,
+        "--batch_size",str(BATCH_SIZE),"--grad_accum_steps",str(GRAD_ACCUM),
         "--precision","fp32","--dinov3_precision","fp32","--vision_precision","fp32",
         "--no_freeze_backbones","--freeze_text_encoder",
         "--lr","5e-5","--head_lr","5e-5","--dinov3_lr","1e-5","--vision_encoder_lr","1e-5",
         "--weight_decay","1e-10","--head_weight_decay","1e-10",
         "--dinov3_weight_decay","1e-10","--vision_encoder_weight_decay","1e-10",
-        "--max_steps","70000","--lr_schedule_steps","70000","--warmup_steps","3334",
+        "--max_steps",str(MAX_STEPS),"--lr_schedule_steps",str(MAX_STEPS),"--warmup_steps","3334",
         "--min_lr_ratio","1","--save_steps","5000","--extra_save_steps","20","1000",
-        "--num_workers","4","--seed","42","--log_freq","20","--resume_mode","none"]
+        "--num_workers","4","--seed",str(SEED),"--log_freq","20","--resume_mode","none"]
+    if VISION_TYPE == "sdtv3_19m":
+        arguments += [
+            "--vision_pretrained_checkpoint", VISION,
+            "--vision_model_source_path", str(code/"third_party/Spike-Driven-Transformer-V3/SDT_V3/Classification/Model_Base/models.py"),
+        ]
+    if TEXT_TYPE == "smoothspike_bert":
+        arguments += ["--text_projection_init", str(CALIBRATION/"text_projection.pth")]
+    return arguments
 
 
 def evaluate(code,checkpoint):
@@ -113,7 +123,7 @@ def evaluate(code,checkpoint):
                  "--libero_root",LIBERO_ROOT,"--dinov3_path",DINO,"--bert_path",BERT,
                  "--stats_path",str(code/"experiments/libero/configs/libero_all4_stats.json"),
                  "--stats_key","libero_all4_no_noops","--normalize_binary_gripper","false",
-                 "--task_suite_name",suite,"--num_trials_per_task","5","--num_steps_wait","10",
+                 "--task_suite_name",suite,"--num_trials_per_task",str(EVAL_TRIALS),"--num_steps_wait","10",
                  "--num_open_loop_steps","12","--chunk_size","12","--env_img_res","256",
                  "--seed","7","--control_mode","relative","--precision","fp32",
                  "--mujoco_gl","osmesa","--pyopengl_platform","osmesa","--save_video","false",
@@ -124,7 +134,7 @@ def evaluate(code,checkpoint):
         env.update(LIBERO_CONFIG_PATH=LIBERO_CONFIG,
                    MUJOCO_GL="osmesa",PYOPENGL_PLATFORM="osmesa",OMP_NUM_THREADS="1",
                    MKL_NUM_THREADS="1",LP_NUM_THREADS="4")
-        run_command(command,EVALUATION/(suite+".stdout.log"),EVALUATION/(suite+".exit_code"),env,14400)
+        run_command(command,EVALUATION/(suite+".stdout.log"),EVALUATION/(suite+".exit_code"),env,14400 * max(1, (EVAL_TRIALS + 4) // 5))
     def gpu4():
         suite_job(GPU_IDS[0],"libero_spatial")
         suite_job(GPU_IDS[0],"libero_object")
@@ -132,15 +142,15 @@ def evaluate(code,checkpoint):
         jobs=[pool.submit(gpu4),pool.submit(suite_job,GPU_IDS[1],"libero_goal"),pool.submit(suite_job,GPU_IDS[2],"libero_10")]
         for job in jobs:
             job.result()
-    summary={"checkpoint":str(checkpoint),"checkpoint_weights":"ema","seed":7,"trials_per_task":5,
+    summary={"checkpoint":str(checkpoint),"checkpoint_weights":"ema","seed":7,"trials_per_task":EVAL_TRIALS,
              "suites":{},"total_successes":0,"total_episodes":0}
     for suite in SUITES:
         result=json.loads((EVALUATION/(suite+".result.json")).read_text())
-        if result["total_episodes"]!=50 or result["num_trials_per_task"]!=5:
+        if result["total_episodes"]!=10 * EVAL_TRIALS or result["num_trials_per_task"]!=EVAL_TRIALS:
             raise RuntimeError(f"Incomplete evaluation: {suite}")
-        summary["suites"][suite]={"successes":result["total_successes"],"episodes":50}
+        summary["suites"][suite]={"successes":result["total_successes"],"episodes":10 * EVAL_TRIALS}
         summary["total_successes"]+=result["total_successes"]
-        summary["total_episodes"]+=50
+        summary["total_episodes"]+=10 * EVAL_TRIALS
     summary["overall_success_rate"]=summary["total_successes"]/summary["total_episodes"]
     summary["finished_at"]=stamp()
     (EVALUATION/"summary.json").write_text(json.dumps(summary,indent=2)+"\n")
@@ -148,8 +158,8 @@ def evaluate(code,checkpoint):
     return summary
 
 
-def main():
-    argparse.ArgumentParser(description=__doc__).parse_args()
+def main(argv=None):
+    argparse.ArgumentParser(description=__doc__).parse_args(argv)
     CONTROL.mkdir(parents=True, exist_ok=True)
     lock=(CONTROL/"pipeline.lock").open("a+")
     fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -159,18 +169,19 @@ def main():
         if CALIBRATION.exists() or PREFLIGHT.exists():
             raise RuntimeError("Existing preparation output found; choose a new SPIKE_RUN_NAME")
         free_gpus()
-        status("text_interface_calibration", calibration=str(CALIBRATION))
-        run_command([PYTHON, str(CODE/"experiments/libero/prepare_cross_joint.py"),
-                     "--mode", "calibrate", "--output_dir", str(CALIBRATION)],
-                    CONTROL/"calibration.log", CONTROL/"calibration.exit_code",
-                    environment(CODE, str(GPU_IDS[0])), 900)
-        calibration=json.loads((CALIBRATION/"result.json").read_text())
-        if calibration["metadata"]["source_policy_checkpoint"] is not None:
-            raise RuntimeError("Calibration inherited a trained VLA checkpoint")
+        if TEXT_TYPE == "smoothspike_bert":
+            status("text_interface_calibration", calibration=str(CALIBRATION), modules=MODULES)
+            run_command([PYTHON, str(CODE/"experiments/libero/prepare_cross_joint.py"),
+                         "--mode", "calibrate", "--output_dir", str(CALIBRATION)],
+                        CONTROL/"calibration.log", CONTROL/"calibration.exit_code",
+                        environment(CODE, str(GPU_IDS[0])), 900)
+            calibration=json.loads((CALIBRATION/"result.json").read_text())
+            if calibration["metadata"]["source_policy_checkpoint"] is not None:
+                raise RuntimeError("Calibration inherited a trained VLA checkpoint")
         if shutil.disk_usage(WORK).free<32*2**30:
             raise RuntimeError("Less than 32 GiB disk free; no history removed")
         free_gpus()
-        status("joint_gradient_preflight",preflight=str(PREFLIGHT),calibration=str(CALIBRATION))
+        status("joint_gradient_preflight",preflight=str(PREFLIGHT),modules=MODULES)
         run_command([PYTHON,str(CODE/"experiments/libero/prepare_cross_joint.py"),
                      "--mode","preflight","--output_dir",str(PREFLIGHT)],
                     CONTROL/"preflight.log",CONTROL/"preflight.exit_code",environment(CODE,str(GPU_IDS[0])),900)
@@ -186,14 +197,17 @@ def main():
         shutil.copytree(CODE,snapshot,symlinks=True,ignore=shutil.ignore_patterns(".git", ".deps", ".venv", "venv", "__pycache__", "*.pyc", ".pytest_cache", ".ruff_cache", "*.egg-info", ".env", ".env.*", "outputs", "checkpoints", "pretrained", "datasets", "build", "dist", ".bootstrap-*"))
         initialization={
             "training_scope":"joint_except_frozen_text_backbone","source_policy_checkpoint":None,
-            "vision_initialization":VISION,"interaction_initialization":INIT,
-            "text_backbone_initialization":SMOOTH,
-            "text_projection_initialization":str(CALIBRATION/"text_projection.pth"),
-            "action_head_initialization":"original model constructor, seed 42",
+            "modules":MODULES,
+            "vision_initialization":VISION if VISION_TYPE == "sdtv3_19m" else DINO,
+            "interaction_initialization":INIT,
+            "text_backbone_initialization":SMOOTH if TEXT_TYPE == "smoothspike_bert" else BERT,
+            "text_projection_initialization":str(CALIBRATION/"text_projection.pth") if TEXT_TYPE == "smoothspike_bert" else INIT,
+            "action_head_initialization":f"original model constructor, seed {SEED}",
             "teacher":TEACHER,"optimizer_initial_state":"new; no resume",
-            "batch_per_gpu":128,"global_batch":384,"optimizer_steps":70000,
+            "batch_per_gpu":BATCH_SIZE,"gradient_accumulation":GRAD_ACCUM,
+            "global_batch":GLOBAL_BATCH,"optimizer_steps":MAX_STEPS,
             "loss":"LIBERO action L1 + 0.1 pre-fusion visual MSE KD + 0.1 action MSE KD",
-            "calibration_note":"initialization only; projection participates in joint optimization",
+            "calibration_note":"initialization only; projection participates in joint optimization" if TEXT_TYPE == "smoothspike_bert" else "not used for ANN BERT",
             "mask_note":"legacy sentence protocol; corrected batch/head indexing for both student and teacher",
         }
         (RUN/"initialization.json").write_text(json.dumps(initialization,indent=2)+"\n")
@@ -202,9 +216,9 @@ def main():
         status("joint_training",run=str(RUN),**initialization)
         run_command(command,RUN/"train.log",RUN/"train.exit_code",environment(snapshot,GPUS),604800)
         import torch
-        checkpoint=RUN/"checkpoints/spike_cross_joint_70000.pth"
+        checkpoint=RUN/"checkpoints"/f"{CHECKPOINT_PREFIX}_{MAX_STEPS}.pth"
         saved=torch.load(checkpoint,map_location="cpu",mmap=True,weights_only=False)
-        if (saved["global_step"]!=70000 or not saved.get("ema_model_state_dict") or
+        if (saved["global_step"]!=MAX_STEPS or not saved.get("ema_model_state_dict") or
             saved.get("training_scope")!="joint_except_frozen_text_backbone"):
             raise RuntimeError("Final joint checkpoint is incomplete")
         del saved

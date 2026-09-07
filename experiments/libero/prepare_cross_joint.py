@@ -19,7 +19,7 @@ from turbovla.training.joint_scope import (
     PROJECTION_KIND, load_calibrated_projection, check_preload, joint_scope, gradient_report,
 )
 
-from experiments.libero.settings import CODE, BERT, SMOOTH, INIT, DATASETS
+from experiments.libero.settings import CODE, BERT, SMOOTH, INIT, DATASETS, SEED
 
 
 def emit(event, **values):
@@ -123,7 +123,8 @@ def preflight(destination):
     report=trainer.load_interaction_from_init_checkpoint(model,args.pretrained_init_ckpt)
     check_preload(model,report)
     trainer.load_text_projection_from_init_checkpoint(model,args.pretrained_init_ckpt)
-    load_calibrated_projection(model,args)
+    if args.text_projection_init:
+        load_calibrated_projection(model,args)
     device=torch.device("cuda:0")
     model.to(device).train()
     groups=joint_scope(model,args)
@@ -134,7 +135,8 @@ def preflight(destination):
         gripper_convention=args.lerobot_gripper_convention,
         LOCAL_DINOV3_PATH=args.dinov3_path,chunk_size=args.chunk_size,
         seed=args.seed,local_files_only=True,expected_image_size=args.expected_image_size,
-        vision_encoder_type="sdtv3_19m",vision_image_size=224,enable_dinov3_teacher=False)
+        vision_encoder_type=args.vision_encoder_type,vision_image_size=args.vision_image_size,
+        enable_dinov3_teacher=False)
     samples,frames,seen=[],[],{}
     for episode in dataset.episodes:
         selected=seen.setdefault(episode.suite_index,set())
@@ -176,7 +178,7 @@ def main():
     destination.mkdir(parents=True, exist_ok=False)
     shutil.copyfile(__file__,destination/"prepare_cross_joint.py")
     torch.set_num_threads(4)
-    torch.manual_seed(42)
+    torch.manual_seed(SEED)
     torch.backends.cuda.matmul.allow_tf32=False
     torch.backends.cudnn.allow_tf32=False
     if args.mode=="calibrate":

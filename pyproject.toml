@@ -44,6 +44,7 @@ dev = ["ruff>=0.15", "pytest>=8", "build"]
 spike-turbovla-libero-train = "turbovla.training.train_mixed:main"
 spike-turbovla-libero-eval = "vla_adapter.rollout:main"
 spike-turbovla-joint = "experiments.libero.run_cross_joint_stage:main"
+spike-turbovla-experiment = "experiments.libero.run_experiment:main"
 
 [tool.setuptools.packages.find]
 where = [".", "third_party/vla_adapter", "third_party/starvla_runtime"]

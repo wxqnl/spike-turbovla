@@ -20,27 +20,30 @@ libero_spatial_no_noops_1.0.0_lerobot/
 完成根目录安装、权重与 `.env` 配置后运行：
 
 ```bash
-python -m experiments.libero.run_cross_joint_stage
+python -m experiments.libero.run_experiment --preset vision_text_cross --run-name cross_s42
 ```
 
-| 项目 | 当前固定配方 |
+| 项目 | 默认配方 |
 | --- | --- |
 | 优化步 / batch | 70,000 / 每卡128 × 3卡，累积1 |
-| 初始化 | 公开 SDT-V3、SmoothSpike、GroundingDINO；新动作头与新优化器 |
-| 冻结范围 | 仅 SmoothSpike 文本骨干 |
+| 初始化 | 按所选预设加载公开视觉 / 文本权重及 GroundingDINO；新动作头与新优化器 |
+| 冻结范围 | BERT / SmoothSpike 文本骨干；DINOv3 未使用的 mask token |
 | 学习率 | 视觉骨干 1e-5，其余 5e-5 |
 | warmup / weight decay | 3,334步 / 1e-10 |
 | 优化器 / EMA | AdamW，betas=(0.9,0.95) / 0.999 |
 | 精度 / seed | FP32 / 42 |
 | 损失 | 专家动作 L1 + 0.1视觉特征 MSE 蒸馏 + 0.1动作 MSE 蒸馏 |
 
-文本初始化只用训练指令对齐公开 BERT + GroundingDINO 投影，不使用先前训练完成的策略或评估轨迹。随后该投影参与联合优化。启动前检查使用8个真实训练帧和纯专家动作 L1，不执行优化器更新。
+各模块组合与下载命令见[根目录 README](../../README.md)。所有组合独立初始化并联合训练；ANN BERT 跳过文本校正。
 
-流水线保存源码快照、初始化信息、第一步参数更新记录、训练日志和退出码。最终70k EMA权重通过检查且训练退出0后，自动开始四套评估。运行目录已存在时拒绝重开，失败不自动重试。
+SmoothSpike 文本初始化只用训练指令对齐公开 BERT + GroundingDINO 投影，不使用先前训练完成的策略或评估轨迹。随后该投影参与联合优化。启动前检查使用8个真实训练帧和纯专家动作 L1，不执行优化器更新。
+
+流水线保存源码快照、初始化信息、第一步参数更新记录、训练日志和退出码。最终目标步数的 EMA 权重通过检查且训练退出0后，自动开始四套评估。运行目录已存在时拒绝重开，失败不自动重试。
 
 底层入口也可独立使用：
 
 ```bash
+python -m experiments.libero.run_experiment --help
 python -m experiments.libero.train --help
 python -m experiments.libero.evaluate --help
 python -m experiments.libero.prepare_cross_joint --help
@@ -48,14 +51,15 @@ python -m experiments.libero.prepare_cross_joint --help
 
 ## 评估
 
-下面是单套完整评估，共10任务 × 每任务50次。四套分别运行共2,000局；当前流水线默认是每任务5次、共200局的小规模评估，两者不能混报。
+下面是单套完整评估，共10任务 × 每任务50次。四套分别运行共2,000局；流水线默认每任务5次、共200局；启动时传入 `--eval-trials 50` 可在训练后自动跑2,000局，两者不能混报。
 
 ```bash
+mkdir -p outputs/eval
 CUDA_VISIBLE_DEVICES=4 python -m experiments.libero.evaluate \
-  --ckpt_path /path/to/spike_cross_joint_70000.pth \
+  --ckpt_path /path/to/spike_turbovla_70000.pth \
   --checkpoint_weights ema \
-  --libero_root "$SPIKE_LIBERO_ROOT" \
-  --dinov3_path "$SPIKE_DINO_PATH" --bert_path "$SPIKE_BERT_PATH" \
+  --libero_root "${SPIKE_LIBERO_ROOT:-$SPIKE_WORK_ROOT/benchmarks/LIBERO}" \
+  --dinov3_path "${SPIKE_DINO_PATH:-$SPIKE_WORK_ROOT/pretrained/TurboVLA/backbones/dinov3-vitb16}" --bert_path "${SPIKE_BERT_PATH:-$SPIKE_WORK_ROOT/pretrained/TurboVLA/backbones/bert-base-uncased}" \
   --stats_path experiments/libero/configs/libero_all4_stats.json \
   --stats_key libero_all4_no_noops --normalize_binary_gripper false \
   --task_suite_name libero_spatial --num_trials_per_task 50 \
@@ -77,7 +81,7 @@ CUDA_VISIBLE_DEVICES=4 python -m experiments.libero.evaluate \
 ```bash
 CUDA_VISIBLE_DEVICES=4 python -m experiments.libero.calibrate_text_projection \
   --baseline_checkpoint /path/to/vision_only_70000.pth \
-  --smoothspike_path "$SPIKE_TEXT_PATH" \
+  --smoothspike_path "${SPIKE_TEXT_PATH:-$SPIKE_WORK_ROOT/pretrained/SmoothSpike/smoothspike-bert-base-fused}" \
   --output_dir /path/to/new_text_calibration
 ```
 
