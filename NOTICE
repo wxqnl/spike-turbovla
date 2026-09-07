@@ -1,0 +1,10 @@
+spike-turbovla
+Derived from TurboVLA: https://github.com/H-EmbodVis/TurboVLA
+
+The model, training and evaluation integration has been modified for SDT-V3
+vision, frozen SmoothSpike text, text-interface calibration, spike Cross-attention,
+and independent joint LIBERO training.
+
+Original copyright notices and third-party license texts are retained.
+See third_party/README.md and third_party/licenses/ for provenance and scope.
+Externally fetched upstream model files remain subject to their upstream terms.

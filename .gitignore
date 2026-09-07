@@ -1,0 +1,51 @@
+# Python and build products
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+.deps/
+build/
+dist/
+
+# Local assets and experiment products
+pretrained
+checkpoints/
+datasets/
+outputs/
+runs/
+wandb/
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+*.bin
+*.log
+*.exit_code
+*.tmp
+*.zip
+*.tar
+*.tar.gz
+*.mp4
+*.gif
+.DS_Store
+.bootstrap-*/
+
+# Credentials and machine-specific configuration
+.env
+.env.*
+!.env.example
+.netrc
+.credentials*
+credentials*.json
+*.pem
+*.key
+
+# Fetch upstream model implementations with scripts/setup_third_party.py.
+# The integration patch and provenance are versioned; upstream code is not relicensed.
+/third_party/SmoothSpike/spikingbert_rot_inf.py
+/third_party/SmoothSpike/hadamard_utils.py
+/third_party/SmoothSpike/utils.py
+/third_party/SmoothSpike/convertor.py
+/third_party/Spike-Driven-Transformer-V3/SDT_V3/
