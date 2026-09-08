@@ -2,6 +2,25 @@
 
 基于 [TurboVLA](https://github.com/H-EmbodVis/TurboVLA) 的 LIBERO 逐模块脉冲化实验。vision encoder、text encoder 和 Cross-Attention 核心可以独立选择。
 
+## 重要更新：2026-09-08 精度修复
+
+旧训练器使用 `float32_matmul_precision=high`，文本校准和评估却默认 `highest`。
+两边都叫 FP32，并不代表矩阵乘法的内部精度相同；这会明显改变 SmoothSpike 输出。
+
+先保存本地改动，再更新代码：`git pull --ff-only origin main`。
+
+- **新训练**：所有预设显式使用 `highest`；checkpoint 保存 `numerics`，训练后的评估自动读取。
+- **旧 Cross 联合训练权重**：如果来自旧版 `high` 训练器，评估必须加
+  `--precision fp32 --float32_matmul_precision high`。仅更新代码、保留 `auto` 不会自动纠正旧权重。
+- **后处理校准得到的旧 SmoothSpike 权重**：沿用校准时的 `highest`，使用
+  `--checkpoint_weights raw --precision fp32 --float32_matmul_precision highest`，不要一律改成 `high`。
+- **含新元数据的 checkpoint**：使用 `--precision fp32 --float32_matmul_precision auto`。
+  缺少元数据时 `auto` 保留旧评估的 `highest` 并发出警告；其他旧实验应查实际训练/校准配置后明确选择。
+
+同一份 Cross50k EMA、相同200局，训练/评估精度对齐后由116/200（58.0%）恢复到185/200（92.5%）。
+这是200局诊断结果，完整2,000局正在重评，不能把92.5%当作完整benchmark分数。
+[数值检查与逐套对照](docs/precision_fix_20260908.md)
+
 | 预设 `--preset` | Vision | Text（冻结） | Cross 核心 |
 | --- | --- | --- | --- |
 | `ann` | DINOv3 ViT-B/16 | BERT-base-uncased | ANN |

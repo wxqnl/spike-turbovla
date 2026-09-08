@@ -86,6 +86,7 @@ def calibrate(destination):
     metadata={
         "bert_path":BERT,"smoothspike_path":SMOOTH,"grounding_init":INIT,
         "source_policy_checkpoint":None,"sentence_mask":"legacy","head_mask":"corrected",
+        "float32_matmul_precision":torch.get_float32_matmul_precision(),
         "timesteps":4,"training_instructions":instructions,"instruction_count":40,
         "training_metadata":[str(Path(p)/"meta/tasks.jsonl") for p in DATASETS],
         "fit_uses_actions":False,"fit_uses_evaluation_trajectories":False,
@@ -160,6 +161,7 @@ def preflight(destination):
     if any(p.grad is not None for p in model.text_encoder.bert.parameters()):
         raise RuntimeError("Frozen text backbone received gradients")
     result={"training_scope":"joint_except_frozen_text_backbone","source_policy_checkpoint":None,
+            "float32_matmul_precision":torch.get_float32_matmul_precision(),
             "loss_used":"LIBERO ground-truth action L1 only; no distillation in this gradient check",
             "action_l1":float(loss),"optimizer_steps":0,"frames":frames,"gradients":gradients,
             "text_backbone_frozen":True,"text_projection_trainable":True,
@@ -179,6 +181,7 @@ def main():
     shutil.copyfile(__file__,destination/"prepare_cross_joint.py")
     torch.set_num_threads(4)
     torch.manual_seed(SEED)
+    torch.set_float32_matmul_precision("highest")
     torch.backends.cuda.matmul.allow_tf32=False
     torch.backends.cudnn.allow_tf32=False
     if args.mode=="calibrate":

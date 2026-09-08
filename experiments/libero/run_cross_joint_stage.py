@@ -97,6 +97,7 @@ def training_arguments(code,run):
         "--checkpoint_dir",str(run/"checkpoints"),"--checkpoint_prefix",CHECKPOINT_PREFIX,
         "--batch_size",str(BATCH_SIZE),"--grad_accum_steps",str(GRAD_ACCUM),
         "--precision","fp32","--dinov3_precision","fp32","--vision_precision","fp32",
+        "--float32_matmul_precision","highest",
         "--no_freeze_backbones","--freeze_text_encoder",
         "--lr","5e-5","--head_lr","5e-5","--dinov3_lr","1e-5","--vision_encoder_lr","1e-5",
         "--weight_decay","1e-10","--head_weight_decay","1e-10",
@@ -126,6 +127,7 @@ def evaluate(code,checkpoint):
                  "--task_suite_name",suite,"--num_trials_per_task",str(EVAL_TRIALS),"--num_steps_wait","10",
                  "--num_open_loop_steps","12","--chunk_size","12","--env_img_res","256",
                  "--seed","7","--control_mode","relative","--precision","fp32",
+                 "--float32_matmul_precision","auto",
                  "--mujoco_gl","osmesa","--pyopengl_platform","osmesa","--save_video","false",
                  "--video_out_path",str(EVALUATION/"videos"),
                  "--result_json_path",str(EVALUATION/(suite+".result.json")),
@@ -143,11 +145,15 @@ def evaluate(code,checkpoint):
         for job in jobs:
             job.result()
     summary={"checkpoint":str(checkpoint),"checkpoint_weights":"ema","seed":7,"trials_per_task":EVAL_TRIALS,
+             "float32_matmul_precision_requested":"auto",
              "suites":{},"total_successes":0,"total_episodes":0}
     for suite in SUITES:
         result=json.loads((EVALUATION/(suite+".result.json")).read_text())
         if result["total_episodes"]!=10 * EVAL_TRIALS or result["num_trials_per_task"]!=EVAL_TRIALS:
             raise RuntimeError(f"Incomplete evaluation: {suite}")
+        if result["numerics"]["float32_matmul_precision"] != "highest":
+            raise RuntimeError(f"New-run train/eval matmul precision mismatch: {suite}")
+        summary["numerics"] = result["numerics"]
         summary["suites"][suite]={"successes":result["total_successes"],"episodes":10 * EVAL_TRIALS}
         summary["total_successes"]+=result["total_successes"]
         summary["total_episodes"]+=10 * EVAL_TRIALS
@@ -206,6 +212,7 @@ def main(argv=None):
             "teacher":TEACHER,"optimizer_initial_state":"new; no resume",
             "batch_per_gpu":BATCH_SIZE,"gradient_accumulation":GRAD_ACCUM,
             "global_batch":GLOBAL_BATCH,"optimizer_steps":MAX_STEPS,
+            "float32_matmul_precision":"highest",
             "loss":"LIBERO action L1 + 0.1 pre-fusion visual MSE KD + 0.1 action MSE KD",
             "calibration_note":"initialization only; projection participates in joint optimization" if TEXT_TYPE == "smoothspike_bert" else "not used for ANN BERT",
             "mask_note":"legacy sentence protocol; corrected batch/head indexing for both student and teacher",
@@ -219,6 +226,7 @@ def main(argv=None):
         checkpoint=RUN/"checkpoints"/f"{CHECKPOINT_PREFIX}_{MAX_STEPS}.pth"
         saved=torch.load(checkpoint,map_location="cpu",mmap=True,weights_only=False)
         if (saved["global_step"]!=MAX_STEPS or not saved.get("ema_model_state_dict") or
+            saved.get("numerics",{}).get("float32_matmul_precision")!="highest" or
             saved.get("training_scope")!="joint_except_frozen_text_backbone"):
             raise RuntimeError("Final joint checkpoint is incomplete")
         del saved

@@ -1,5 +1,10 @@
 # LIBERO 复现说明
 
+2026-09-08修复了训练/评估矩阵乘法精度错配。新训练用highest，评估auto读checkpoint元数据。
+旧Cross联合训练权重需显式high；旧后处理校准SmoothSpike使用highest和raw。
+仅指定FP32不够。[迁移说明](../../README.md#重要更新2026-09-08-精度修复)
+与[同权重对照结果](../../docs/precision_fix_20260908.md)。
+
 ## 数据布局
 
 `SPIKE_DATA_ROOT` 下需要四个 LeRobot 数据集，每个包含 `meta/tasks.jsonl`、episode 元数据、Parquet 与两路视频：
@@ -31,7 +36,7 @@ python -m experiments.libero.run_experiment --preset vision_text_cross --run-nam
 | 学习率 | 视觉骨干 1e-5，其余 5e-5 |
 | warmup / weight decay | 3,334步 / 1e-10 |
 | 优化器 / EMA | AdamW，betas=(0.9,0.95) / 0.999 |
-| 精度 / seed | FP32 / 42 |
+| 精度 / seed | FP32、float32_matmul_precision=highest / 42 |
 | 损失 | 专家动作 L1 + 0.1视觉特征 MSE 蒸馏 + 0.1动作 MSE 蒸馏 |
 
 各模块组合与下载命令见[根目录 README](../../README.md)。所有组合独立初始化并联合训练；ANN BERT 跳过文本校正。
@@ -64,6 +69,7 @@ CUDA_VISIBLE_DEVICES=4 python -m experiments.libero.evaluate \
   --stats_key libero_all4_no_noops --normalize_binary_gripper false \
   --task_suite_name libero_spatial --num_trials_per_task 50 \
   --seed 7 --precision fp32 --control_mode relative \
+  --float32_matmul_precision auto \
   --chunk_size 12 --num_open_loop_steps 12 --num_steps_wait 10 \
   --env_img_res 256 --mujoco_gl osmesa --pyopengl_platform osmesa \
   --save_video false --result_json_path outputs/eval/spatial.json \
@@ -73,6 +79,8 @@ CUDA_VISIBLE_DEVICES=4 python -m experiments.libero.evaluate \
 其余三套为 `libero_object`、`libero_goal`、`libero_10`，每套使用独立输出路径。可用 `--task_ids` 做任务级调度；同一个任务不要重复记分。
 
 评估旧的文本校正 checkpoint 时使用 `--checkpoint_weights raw`。该文件由 vision-only EMA 策略派生，但文件自身不含 EMA 字段，不能选 `ema`。
+同时显式选择 `--float32_matmul_precision highest`。如果评估的是旧high训练器产生的Cross联合训练EMA，
+则把示例的auto改为high；不要对所有旧SmoothSpike权重一律选high。
 
 ## 已训练策略的文本接口校正
 

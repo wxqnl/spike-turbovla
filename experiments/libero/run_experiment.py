@@ -53,6 +53,7 @@ def main():
             "batch_per_gpu": s.BATCH_SIZE, "gradient_accumulation": s.GRAD_ACCUM,
             "global_batch": s.GLOBAL_BATCH, "optimizer_steps": s.MAX_STEPS,
             "eval_episodes": 40 * s.EVAL_TRIALS,
+            "float32_matmul_precision": "highest",
             "training_scope": "joint_except_frozen_text_backbone",
             "final_checkpoint": str(s.RUN / "checkpoints" / f"{s.CHECKPOINT_PREFIX}_{s.MAX_STEPS}.pth"),
             "training_command": shlex.join(command),

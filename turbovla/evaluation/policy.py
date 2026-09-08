@@ -370,6 +370,7 @@ class TurboVLAPolicy:
         fusion_droppath: float = 0.1,
         sub_sentence_present: bool = True,
         precision: str = "bf16",
+        float32_matmul_precision: str = "auto",
         checkpoint_weights: str = "raw",
         text_sentence_mask_override: str = "",
         dinov3_output_hidden_states: bool = True,
@@ -415,6 +416,33 @@ class TurboVLAPolicy:
                 flush=True,
             )
         self._checkpoint = torch.load(self.ckpt_path, map_location="cpu")
+        saved_numerics = self._checkpoint.get("numerics", {}) if isinstance(self._checkpoint, dict) else {}
+        recorded_matmul = saved_numerics.get("float32_matmul_precision")
+        if recorded_matmul is None and float32_matmul_precision == "auto":
+            print("[TurboVLAPolicy] WARNING: checkpoint lacks numerical-policy metadata. "
+                  "auto retains historical highest evaluation, which may differ from training. "
+                  "Choose --float32_matmul_precision explicitly when reproducing a legacy run.",
+                  flush=True)
+        if float32_matmul_precision not in {"auto", "highest", "high"}:
+            raise ValueError("float32_matmul_precision must be auto, highest, or high")
+        # Old checkpoints have no numerical-policy metadata: retain the historical
+        # highest eval default, and require an explicit high override for diagnosis.
+        self.float32_matmul_precision = (
+            recorded_matmul or "highest"
+        ) if float32_matmul_precision == "auto" else float32_matmul_precision
+        if self.float32_matmul_precision not in {"highest", "high"}:
+            raise ValueError(f"Unsupported checkpoint matmul policy: {self.float32_matmul_precision}")
+        torch.set_float32_matmul_precision(self.float32_matmul_precision)
+        if "cudnn_allow_tf32" in saved_numerics:
+            torch.backends.cudnn.allow_tf32 = bool(saved_numerics["cudnn_allow_tf32"])
+        self.numerics = {
+            "float32_matmul_precision": torch.get_float32_matmul_precision(),
+            "cuda_matmul_allow_tf32": torch.backends.cuda.matmul.allow_tf32,
+            "cudnn_allow_tf32": torch.backends.cudnn.allow_tf32,
+            "requested": float32_matmul_precision,
+            "checkpoint_recorded": recorded_matmul,
+        }
+        print("[TurboVLAPolicy] numerics: " + json.dumps(self.numerics), flush=True)
         model_config = self._checkpoint.get("model_config") if isinstance(self._checkpoint, dict) else None
         if model_config is not None:
             from ..models.configuration import TurboVLAConfig
@@ -555,6 +583,11 @@ class TurboVLAPolicy:
         instruction: str,
         state_or_obs: np.ndarray | dict[str, Any],
     ) -> np.ndarray:
+        if torch.get_float32_matmul_precision() != self.float32_matmul_precision:
+            raise RuntimeError(
+                "Process-wide matmul precision changed after policy construction. "
+                "Use separate processes for precision comparisons; frozen text rotations are cached."
+            )
         if isinstance(state_or_obs, dict):
             state = state_from_libero_obs(state_or_obs)
         else:

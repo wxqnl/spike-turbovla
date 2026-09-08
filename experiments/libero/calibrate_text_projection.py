@@ -41,6 +41,7 @@ def main():
     destination.mkdir(parents=True, exist_ok=False)
     torch.set_num_threads(4)
     torch.manual_seed(42)
+    torch.set_float32_matmul_precision("highest")
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     device = torch.device("cuda:0")
@@ -160,11 +161,17 @@ def main():
         model.config.text = spike_config
         state = {key: value.detach().cpu() for key, value in model.state_dict().items()}
         output_args = vars(args).copy()
+        output_args["float32_matmul_precision"] = torch.get_float32_matmul_precision()
         output_args.update(text_encoder_type="smoothspike_bert", text_model_path=spike_config.model_name_or_path,
                            text_timesteps=4, text_sentence_mask_version="legacy", text_head_mask_version="corrected")
         checkpoint = destination / "spike_text_projection_calibrated.pth"
         torch.save({"model_state_dict": state, "model_config": model.config.to_dict(),
                     "args": output_args, "global_step": 0, "source_global_step": baseline.get("global_step"),
+                    "numerics": {
+                        "float32_matmul_precision": torch.get_float32_matmul_precision(),
+                        "cuda_matmul_allow_tf32": torch.backends.cuda.matmul.allow_tf32,
+                        "cudnn_allow_tf32": torch.backends.cudnn.allow_tf32,
+                    },
                     "checkpoint_kind": "ema_policy_with_calibrated_online_spike_text",
                     "calibration_metadata": report}, checkpoint)
         report["checkpoint"] = str(checkpoint)

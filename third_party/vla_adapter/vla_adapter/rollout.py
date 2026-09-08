@@ -82,6 +82,7 @@ class GenerateConfig:
     fusion_droppath: float = 0.1
     sub_sentence_present: bool = True
     precision: str = "bf16"
+    float32_matmul_precision: str = "auto"
     checkpoint_weights: str = "raw"
     text_sentence_mask_override: str = ""
     dinov3_output_hidden_states: bool = True
@@ -332,6 +333,7 @@ def eval_libero(cfg: GenerateConfig) -> float:
         fusion_droppath=cfg.fusion_droppath,
         sub_sentence_present=cfg.sub_sentence_present,
         precision=cfg.precision,
+        float32_matmul_precision=cfg.float32_matmul_precision,
         checkpoint_weights=cfg.checkpoint_weights,
         text_sentence_mask_override=cfg.text_sentence_mask_override,
         dinov3_output_hidden_states=cfg.dinov3_output_hidden_states,
@@ -368,6 +370,7 @@ def eval_libero(cfg: GenerateConfig) -> float:
         "num_open_loop_steps": cfg.num_open_loop_steps,
         "seed": cfg.seed,
         "precision": cfg.precision,
+        "numerics": policy.numerics,
         "checkpoint_weights": cfg.checkpoint_weights,
         "text_sentence_mask_override": cfg.text_sentence_mask_override,
         "effective_sentence_mask": policy.model.config.sentence_mask_version,

@@ -88,6 +88,10 @@ def parse_args():
     parser.add_argument("--distill_text_weight", type=float, default=0.0,
                         help="Relative masked MSE on projected text tokens; frozen ANN teacher is training-only.")
     parser.add_argument("--precision", type=str, default="fp32", choices=["fp32", "bf16_amp"])
+    parser.add_argument(
+        "--float32_matmul_precision", choices=["highest", "high"], default="highest",
+        help="FP32 matrix multiplication policy, saved for inference. highest matches SmoothSpike calibration.",
+    )
     parser.add_argument("--max_steps", type=int, default=80000)
     parser.add_argument(
         "--lr_schedule_steps",
@@ -601,7 +605,10 @@ def train_model():
             raise ValueError("bf16_amp precision requires CUDA")
         if not torch.cuda.is_bf16_supported():
             raise ValueError("bf16_amp requested but current CUDA device does not report bf16 support")
-    torch.set_float32_matmul_precision("high")
+    # Apply before construction/forward: frozen SmoothSpike caches a rotation
+    # computed on its first forward under the active matrix multiplication policy.
+    torch.set_float32_matmul_precision(args.float32_matmul_precision)
+    print(f"float32_matmul_precision={torch.get_float32_matmul_precision()}", flush=True)
 
     if args.lr_schedule_steps is None:
         args.lr_schedule_steps = args.max_steps
@@ -993,6 +1000,11 @@ def train_model():
                         "scheduler_state_dict": scheduler.state_dict(),
                         "loss": global_loss,
                         "args": vars(args),
+                        "numerics": {
+                            "float32_matmul_precision": torch.get_float32_matmul_precision(),
+                            "cuda_matmul_allow_tf32": torch.backends.cuda.matmul.allow_tf32,
+                            "cudnn_allow_tf32": torch.backends.cudnn.allow_tf32,
+                        },
                         "model_config": unwrap_model(model).config.to_dict(),
                     },
                     temporary_path,
