@@ -4,6 +4,7 @@ import json
 import math
 import os
 import random
+from contextlib import nullcontext
 
 import numpy as np
 import torch
@@ -41,6 +42,9 @@ def parse_args():
     parser.add_argument("--vision_model_source_path", type=str, default=None)
     parser.add_argument("--vision_image_size", type=int, default=None)
     parser.add_argument("--vision_output_grid_size", type=int, default=14)
+    parser.add_argument("--vision_gradient_checkpointing", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--vision_checkpoint_scope", choices=["all", "early"], default="all")
+    parser.add_argument("--projection_gradient_checkpointing", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--bert_path", type=str, required=True)
     parser.add_argument(
         "--text_encoder_type",
@@ -85,6 +89,9 @@ def parse_args():
     parser.add_argument("--teacher_checkpoint", type=str, default=None)
     parser.add_argument("--distill_feature_weight", type=float, default=0.0)
     parser.add_argument("--distill_action_weight", type=float, default=0.0)
+    parser.add_argument("--spike_state_population", type=int, default=0)
+    parser.add_argument("--spike_state_population_range", type=float, default=4.0)
+    parser.add_argument("--spike_state_attention_gain", type=float, default=1.0)
     parser.add_argument("--distill_text_weight", type=float, default=0.0,
                         help="Relative masked MSE on projected text tokens; frozen ANN teacher is training-only.")
     parser.add_argument("--precision", type=str, default="fp32", choices=["fp32", "bf16_amp"])
@@ -133,9 +140,21 @@ def parse_args():
     )
     parser.add_argument("--vla_feature_enhancer_layers", type=int, default=6)
     parser.add_argument("--enhancer_inner_dim", type=int, default=1024)
-    parser.add_argument("--cross_attention_type", choices=["ann", "spike_sdsa"], default="ann")
+    parser.add_argument("--cross_attention_type", choices=["ann", "spike_sdsa", "spike_wta"], default="ann")
+    parser.add_argument("--fusion_backbone_type", choices=["hybrid", "spike_temporal", "spike_wta", "spike_text_only"], default="hybrid")
+    parser.add_argument("--text_only_spike_projections", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--wta_text_topk", type=int, default=3)
+    parser.add_argument("--wta_vision_topk", type=int, default=8)
+    parser.add_argument("--wta_surrogate_temperature", type=float, default=1.0)
+    parser.add_argument("--spike_norm_momentum", type=float, default=0.1)
+    parser.add_argument("--spike_norm_eps", type=float, default=1e-5)
+    parser.add_argument("--spike_norm_sync", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--spike_calibration_batches", type=int, default=8)
+    parser.add_argument("--approve_spike_fusion_training", action="store_true",
+                        help="Explicit approval after reviewing the v2 architecture; off by default")
     parser.add_argument("--cross_timesteps", type=int, default=4)
     parser.add_argument("--cross_gradient_checkpointing", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--action_head_type", choices=["ann", "spike_sdsa"], default="ann")
     parser.add_argument("--action_dim", type=int, default=7)
     parser.add_argument("--chunk_size", type=int, default=12)
     parser.add_argument("--state_dim", type=int, default=8)
@@ -247,6 +266,9 @@ def build_model_architecture(args):
     model_args.vision_pretrained_checkpoint = args.vision_pretrained_checkpoint
     model_args.vision_model_source_path = args.vision_model_source_path
     model_args.vision_output_grid_size = args.vision_output_grid_size
+    model_args.vision_gradient_checkpointing = getattr(args, "vision_gradient_checkpointing", False)
+    model_args.vision_checkpoint_scope = getattr(args, "vision_checkpoint_scope", "all")
+    model_args.projection_gradient_checkpointing = getattr(args, "projection_gradient_checkpointing", False)
     model_args.bert_path = args.bert_path
     model_args.text_encoder_type = args.text_encoder_type
     model_args.text_model_path = args.text_model_path or args.bert_path
@@ -263,11 +285,22 @@ def build_model_architecture(args):
     model_args.vla_feature_enhancer_layers = args.vla_feature_enhancer_layers
     model_args.enhancer_inner_dim = args.enhancer_inner_dim
     model_args.cross_attention_type = getattr(args, "cross_attention_type", "ann")
+    model_args.fusion_backbone_type = getattr(args, "fusion_backbone_type", "hybrid")
+    model_args.text_only_spike_projections = getattr(args, "text_only_spike_projections", False)
+    for name in ("wta_text_topk", "wta_vision_topk", "wta_surrogate_temperature",
+                 "spike_norm_momentum", "spike_norm_eps", "spike_norm_sync"):
+        if hasattr(args, name):
+            setattr(model_args, name, getattr(args, name))
     model_args.cross_timesteps = getattr(args, "cross_timesteps", 4)
     model_args.cross_gradient_checkpointing = getattr(args, "cross_gradient_checkpointing", True)
     model_args.text_dropout = args.text_dropout
     model_args.fusion_dropout = args.fusion_dropout
     model_args.fusion_droppath = args.fusion_droppath
+    model_args.action_head_type = args.action_head_type
+    model_args.spike_state_population = getattr(args, "spike_state_population", 0)
+    model_args.spike_state_population_range = getattr(args, "spike_state_population_range", 4.0)
+    model_args.spike_state_attention_gain = getattr(args, "spike_state_attention_gain", 1.0)
+    model_args.act_dropout = 0.0 if args.action_head_type == "spike_sdsa" else 0.1
     model_args.action_dim = args.action_dim
     model_args.chunk_size = args.chunk_size
     model_args.state_dim = args.state_dim
@@ -304,6 +337,10 @@ def build_distillation_teacher(args):
         config.text.timesteps = 1
         config.text.frozen = True
         config.text.local_files_only = not args.allow_hf_download
+        config.interaction.backbone_type = "hybrid"
+        config.interaction.text_only_spike_projections = False
+        config.interaction.cross_attention_type = "ann"
+        config.action.head_type = "ann"
         teacher = build_turbovla(config)
     else:
         teacher_args = DummyArgs()
@@ -321,6 +358,9 @@ def build_distillation_teacher(args):
         teacher_args.text_sentence_mask_version = None
         teacher_args.text_head_mask_version = None
         teacher_args.cross_attention_type = "ann"
+        teacher_args.fusion_backbone_type = "hybrid"
+        teacher_args.action_head_type = "ann"
+        teacher_args.text_only_spike_projections = False
         teacher_args.freeze_vision_encoder = True
         teacher = build_model_architecture(teacher_args)
     state = _extract_state_dict(checkpoint)
@@ -350,18 +390,13 @@ def freeze_backbones(model):
 
 
 def get_latest_checkpoint(ckpt_dir, prefix):
-    ckpts = glob.glob(os.path.join(ckpt_dir, f"{prefix}_*.pth"))
-    if not ckpts:
-        return None
-
-    def extract_step(path):
-        name = os.path.splitext(os.path.basename(path))[0]
-        try:
-            return int(name.split("_")[-1])
-        except ValueError:
-            return -1
-
-    return max(ckpts, key=extract_step)
+    # EMA evaluation exports are not resumable training checkpoints.
+    candidates = []
+    for path in glob.glob(os.path.join(ckpt_dir, f"{prefix}_*.pth")):
+        step = os.path.splitext(os.path.basename(path))[0][len(prefix) + 1:]
+        if step.isdigit():
+            candidates.append((int(step), path))
+    return max(candidates)[1] if candidates else None
 
 
 def masked_l1_loss(pred, target, mask):
@@ -485,6 +520,10 @@ def load_interaction_from_init_checkpoint(model, ckpt_path):
     source_state = _extract_state_dict(ckpt)
     source_state = {(k[7:] if k.startswith("module.") else k): v for k, v in source_state.items()}
 
+    if model.config.interaction.backbone_type in {"spike_temporal", "spike_wta", "spike_text_only"}:
+        from .temporal_fusion import load_common_interaction
+        return load_common_interaction(model, source_state)
+
     target_state = model.state_dict()
     mapped = {}
     skipped_missing = 0
@@ -587,6 +626,15 @@ def move_samples_to_device(samples, device):
 
 def train_model():
     args = parse_args()
+    if getattr(args, "fusion_backbone_type", "hybrid") in {"spike_temporal", "spike_wta", "spike_text_only"}:
+        if not getattr(args, "approve_spike_fusion_training", False):
+            raise RuntimeError("New spike fusion training is held pending architecture review and explicit approval")
+        if args.float32_matmul_precision != "highest" or args.precision != "fp32":
+            raise ValueError("The new temporal fusion recipe requires highest/fp32 consistently")
+        if args.fusion_backbone_type == "spike_temporal" and args.spike_calibration_batches < 1:
+            raise ValueError("Use at least one real training-data calibration batch")
+        if not args.require_feature_enhancer_preload or not args.text_projection_init:
+            raise ValueError("Temporal fusion requires common GroundingDINO and calibrated text projection initialization")
     if args.head_lr is None:
         args.head_lr = args.lr
     if args.head_weight_decay is None:
@@ -608,6 +656,8 @@ def train_model():
     # Apply before construction/forward: frozen SmoothSpike caches a rotation
     # computed on its first forward under the active matrix multiplication policy.
     torch.set_float32_matmul_precision(args.float32_matmul_precision)
+    if args.fusion_backbone_type in {"spike_wta", "spike_text_only"}:
+        torch.backends.cudnn.allow_tf32 = False
     print(f"float32_matmul_precision={torch.get_float32_matmul_precision()}", flush=True)
 
     if args.lr_schedule_steps is None:
@@ -675,7 +725,8 @@ def train_model():
                 raise ValueError("SmoothSpike joint stage requires a calibrated projection")
             check_preload(model, fe_report)
             joint_groups = joint_scope(model, args)
-            if get_latest_checkpoint(args.checkpoint_dir, args.checkpoint_prefix) is not None:
+            if (get_latest_checkpoint(args.checkpoint_dir, args.checkpoint_prefix) is not None
+                    and args.resume_mode == "none"):
                 raise RuntimeError("Refusing to restart or overwrite an existing joint run")
             if rank == 0:
                 print("joint_trainable_parameter_groups:",
@@ -746,7 +797,16 @@ def train_model():
             if rank == 0:
                 print(f"resume from {latest_ckpt_path} with mode={args.resume_mode}")
             ckpt = torch.load(latest_ckpt_path, map_location="cpu")
-            missing, unexpected = model.load_state_dict(ckpt["model_state_dict"], strict=False)
+            if model.config.interaction.backbone_type in {"spike_temporal", "spike_wta", "spike_text_only"}:
+                saved = ckpt.get("model_config", {}).get("interaction", {}).get("backbone_type", "hybrid")
+                if saved != model.config.interaction.backbone_type:
+                    raise ValueError("Cannot resume a different fusion architecture")
+                if saved in {"spike_wta", "spike_text_only"}:
+                    from .wta_norms import check_wta_resume_config
+                    check_wta_resume_config(model.config, ckpt["model_config"])
+            missing, unexpected = model.load_state_dict(
+                ckpt["model_state_dict"], strict=model.config.interaction.backbone_type in {"spike_temporal", "spike_wta", "spike_text_only"}
+            )
             if rank == 0:
                 print("resume missing keys:", len(missing))
                 print("resume unexpected keys:", len(unexpected))
@@ -756,6 +816,8 @@ def train_model():
                 global_step = 0
                 if rank == 0:
                     print("optimizer/scheduler reset due to resume_mode=model")
+        elif args.resume_mode != "none":
+            raise FileNotFoundError("Explicit resume requested but no matching checkpoint exists")
         elif rank == 0:
             print("no checkpoint resumed, train from current initialization")
 
@@ -783,6 +845,8 @@ def train_model():
         if ckpt is not None and args.resume_mode == "all":
             optimizer.load_state_dict(ckpt["optimizer_state_dict"])
             scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+            if hasattr(optimizer, "restore_ema"):
+                optimizer.restore_ema(ckpt)
 
         model_to_load = unwrap_model(model)
         if args.joint_scope_audit:
@@ -817,6 +881,16 @@ def train_model():
         )
         data_iter = iter(dataloader)
 
+        if model_to_load.config.interaction.backbone_type == "spike_temporal":
+            from .temporal_fusion import calibrate_training_iterator
+            data_iter, calibration_report = calibrate_training_iterator(
+                model_to_load, data_iter, device, args.spike_calibration_batches,
+                already_calibrated=ckpt is not None,
+            )
+            if rank == 0:
+                with open(os.path.join(args.checkpoint_dir, "spike_calibration.json"), "w", encoding="utf-8") as handle:
+                    json.dump(calibration_report, handle, indent=2)
+
         model.train()
         if args.freeze_backbones:
             model_to_load.dinov3.eval()
@@ -844,7 +918,7 @@ def train_model():
             action_distill_accum = 0.0
             text_distill_accum = 0.0
 
-            for _ in range(args.grad_accum_steps):
+            for micro_step in range(args.grad_accum_steps):
                 try:
                     samples, instructions, states, gt_actions, action_chunk_masks = next(data_iter)
                 except StopIteration:
@@ -856,69 +930,74 @@ def train_model():
                 gt_actions = gt_actions.to(device, non_blocking=True)
                 action_chunk_masks = action_chunk_masks.to(device, non_blocking=True)
 
-                with torch.autocast(
-                    device_type="cuda",
-                    dtype=torch.bfloat16,
-                    enabled=args.precision == "bf16_amp",
-                ):
-                    if args.distill_text_weight > 0:
-                        pred_actions, student_features = model(
-                            instructions, samples, states, return_distillation_features=True
-                        )
-                        student_visual_tokens = student_features["visual"]
-                    elif distillation_enabled:
-                        pred_actions, student_visual_tokens = model(
-                            instructions, samples, states, return_visual_tokens=True
-                        )
-                    else:
-                        pred_actions = model(instructions, samples, states)
-                    if pred_actions.shape != gt_actions.shape:
-                        raise ValueError(
-                            f"pred_actions.shape={pred_actions.shape}, gt_actions.shape={gt_actions.shape} mismatch"
-                        )
-
-                    action_loss = masked_l1_loss(pred_actions, gt_actions, action_chunk_masks)
-                    feature_distill_loss = pred_actions.new_zeros(())
-                    action_distill_loss = pred_actions.new_zeros(())
-                    text_distill_loss = pred_actions.new_zeros(())
-                    if teacher is not None:
-                        teacher_samples = {"pixel_values": samples["teacher_pixel_values"]}
-                        with torch.no_grad():
-                            if args.distill_text_weight > 0:
-                                teacher_actions, teacher_features = teacher(
-                                    instructions, teacher_samples, states,
-                                    return_distillation_features=True,
-                                )
-                                teacher_visual_tokens = teacher_features["visual"]
-                            else:
-                                teacher_actions, teacher_visual_tokens = teacher(
-                                    instructions, teacher_samples, states, return_visual_tokens=True,
-                                )
+                # DDP only needs to synchronize accumulated parameter gradients
+                # on the last microbatch; custom synchronized BN stays active.
+                sync_context = (model.no_sync() if is_distributed
+                                and micro_step + 1 < args.grad_accum_steps else nullcontext())
+                with sync_context:
+                    with torch.autocast(
+                        device_type="cuda",
+                        dtype=torch.bfloat16,
+                        enabled=args.precision == "bf16_amp",
+                    ):
                         if args.distill_text_weight > 0:
-                            if not torch.equal(student_features["text_valid"], teacher_features["text_valid"]):
-                                raise ValueError("student/teacher token layouts differ")
-                            text_distill_loss = masked_text_alignment_loss(
-                                student_features["text"], teacher_features["text"],
-                                teacher_features["text_valid"],
+                            pred_actions, student_features = model(
+                                instructions, samples, states, return_distillation_features=True
                             )
-                        if student_visual_tokens.shape != teacher_visual_tokens.shape:
+                            student_visual_tokens = student_features["visual"]
+                        elif distillation_enabled:
+                            pred_actions, student_visual_tokens = model(
+                                instructions, samples, states, return_visual_tokens=True
+                            )
+                        else:
+                            pred_actions = model(instructions, samples, states)
+                        if pred_actions.shape != gt_actions.shape:
                             raise ValueError(
-                                "student/teacher visual token mismatch: "
-                                f"{student_visual_tokens.shape} vs {teacher_visual_tokens.shape}"
+                                f"pred_actions.shape={pred_actions.shape}, gt_actions.shape={gt_actions.shape} mismatch"
                             )
-                        feature_distill_loss = F.mse_loss(
-                            student_visual_tokens.float(), teacher_visual_tokens.float()
+
+                        action_loss = masked_l1_loss(pred_actions, gt_actions, action_chunk_masks)
+                        feature_distill_loss = pred_actions.new_zeros(())
+                        action_distill_loss = pred_actions.new_zeros(())
+                        text_distill_loss = pred_actions.new_zeros(())
+                        if teacher is not None:
+                            teacher_samples = {"pixel_values": samples["teacher_pixel_values"]}
+                            with torch.no_grad():
+                                if args.distill_text_weight > 0:
+                                    teacher_actions, teacher_features = teacher(
+                                        instructions, teacher_samples, states,
+                                        return_distillation_features=True,
+                                    )
+                                    teacher_visual_tokens = teacher_features["visual"]
+                                else:
+                                    teacher_actions, teacher_visual_tokens = teacher(
+                                        instructions, teacher_samples, states, return_visual_tokens=True,
+                                    )
+                            if args.distill_text_weight > 0:
+                                if not torch.equal(student_features["text_valid"], teacher_features["text_valid"]):
+                                    raise ValueError("student/teacher token layouts differ")
+                                text_distill_loss = masked_text_alignment_loss(
+                                    student_features["text"], teacher_features["text"],
+                                    teacher_features["text_valid"],
+                                )
+                            if student_visual_tokens.shape != teacher_visual_tokens.shape:
+                                raise ValueError(
+                                    "student/teacher visual token mismatch: "
+                                    f"{student_visual_tokens.shape} vs {teacher_visual_tokens.shape}"
+                                )
+                            feature_distill_loss = F.mse_loss(
+                                student_visual_tokens.float(), teacher_visual_tokens.float()
+                            )
+                            action_distill_loss = masked_mse_loss(
+                                pred_actions.float(), teacher_actions.float(), action_chunk_masks
+                            )
+                        loss = (
+                            action_loss
+                            + args.distill_feature_weight * feature_distill_loss
+                            + args.distill_action_weight * action_distill_loss
+                            + args.distill_text_weight * text_distill_loss
                         )
-                        action_distill_loss = masked_mse_loss(
-                            pred_actions.float(), teacher_actions.float(), action_chunk_masks
-                        )
-                    loss = (
-                        action_loss
-                        + args.distill_feature_weight * feature_distill_loss
-                        + args.distill_action_weight * action_distill_loss
-                        + args.distill_text_weight * text_distill_loss
-                    )
-                (loss / args.grad_accum_steps).backward()
+                    (loss / args.grad_accum_steps).backward()
                 loss_accum += loss.detach().item()
                 action_loss_accum += action_loss.detach().item()
                 feature_distill_accum += feature_distill_loss.detach().item()
@@ -987,6 +1066,12 @@ def train_model():
                 args.save_final and global_step == args.max_steps
             )
             if rank == 0 and should_save:
+                wta_metadata = None
+                if model_to_load.config.interaction.backbone_type in {"spike_wta", "spike_text_only"}:
+                    from .wta_norms import normalization_metadata
+                    from ..models.components.wta_operators import verify_running_norms
+                    verify_running_norms(model_to_load)
+                    wta_metadata = normalization_metadata()
                 save_path = os.path.join(args.checkpoint_dir, f"{args.checkpoint_prefix}_{global_step}.pth")
                 if os.path.exists(save_path):
                     raise RuntimeError(f"Refusing to overwrite checkpoint: {save_path}")
@@ -1006,6 +1091,10 @@ def train_model():
                             "cudnn_allow_tf32": torch.backends.cudnn.allow_tf32,
                         },
                         "model_config": unwrap_model(model).config.to_dict(),
+                        "wta_normalization": wta_metadata,
+                        "resources": {"world_size": world_size,
+                                      "cuda_peak_allocated_gib": torch.cuda.max_memory_allocated() / 2**30
+                                      if device.type == "cuda" else None},
                     },
                     temporary_path,
                 )

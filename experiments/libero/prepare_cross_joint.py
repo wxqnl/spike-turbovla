@@ -109,25 +109,46 @@ def calibrate(destination):
     emit("common_pretraining_calibration_complete",output=str(destination),**{k:v for k,v in report.items() if k!="metadata"})
 
 
-def preflight(destination):
+def preflight(destination, training_args=None):
     from experiments.libero.run_cross_joint_stage import training_arguments
     from turbovla.data.libero_lerobot import LiberoMixedLeRobotDataset,vla_collate_fn
     from turbovla.training import train_mixed
     argv=sys.argv
     try:
-        sys.argv=[argv[0],*training_arguments(CODE,destination)]
+        sys.argv=[argv[0],*(training_arguments(CODE,destination) if training_args is None else training_args)]
         args=train_mixed.parse_args_and_record()
     finally:
         sys.argv=argv
     trainer.set_seed(args.seed)
     model=trainer.build_model_architecture(args)
+    head_audit = {}
+    if args.action_head_type == "spike_sdsa":
+        baseline_args = copy.copy(args)
+        baseline_args.action_head_type = "ann"
+        trainer.set_seed(args.seed)
+        baseline = trainer.build_model_architecture(baseline_args)
+        current, reference = model.state_dict(), baseline.state_dict()
+        current_keys = {key for key in current if not key.startswith("action_head.")}
+        reference_keys = {key for key in reference if not key.startswith("action_head.")}
+        if current_keys != reference_keys or any(
+            not torch.equal(current[key], reference[key]) for key in reference_keys
+        ):
+            raise RuntimeError("AA unexpectedly changed initialization outside the action head")
+        head_audit["unchanged_non_head_state_tensors"] = len(reference_keys)
+        del baseline, current, reference
+        forbidden = [name for name, module in model.action_head.named_modules()
+                     if isinstance(module, (torch.nn.MultiheadAttention, torch.nn.TransformerDecoderLayer,
+                                            torch.nn.ReLU, torch.nn.GELU, torch.nn.Softmax, torch.nn.Dropout))]
+        if forbidden:
+            raise RuntimeError(f"ANN action-head fallback remains: {forbidden}")
+        head_audit["ann_attention_or_activation_modules"] = forbidden
     report=trainer.load_interaction_from_init_checkpoint(model,args.pretrained_init_ckpt)
     check_preload(model,report)
     trainer.load_text_projection_from_init_checkpoint(model,args.pretrained_init_ckpt)
     if args.text_projection_init:
         load_calibrated_projection(model,args)
     device=torch.device("cuda:0")
-    model.to(device).train()
+    model.to(device).float().train()
     groups=joint_scope(model,args)
     dataset=LiberoMixedLeRobotDataset(
         dataset_dir=args.dataset_dir,dataset_dirs=args.dataset_dirs,
@@ -152,12 +173,54 @@ def preflight(destination):
     if len(samples)!=8:
         raise RuntimeError("Expected eight real frames, two instructions from each training suite")
     images,instructions,states,targets,mask=vla_collate_fn(samples)
-    predictions=model(instructions,trainer.move_samples_to_device(images,device),states.to(device))
+    handles, activity = [], {}
+    if args.action_head_type == "spike_sdsa":
+        from turbovla.models.components.spike_fusion import FunctionalPLIF
+        def observe(name):
+            def hook(module, inputs, outputs):
+                events = outputs[0].detach()
+                if not ((events == 0) | (events == 1) | (events == -1)).all():
+                    raise RuntimeError(f"Non-event operand in spike head: {name}")
+                group = ("cross_context" if "cross_attn.spike_nodes.context" in name else
+                         "self_context" if "self_attn.spike_nodes.context" in name else "other_nodes")
+                record = activity.setdefault(group, {"events": 0, "elements": 0})
+                record["events"] += int(events.ne(0).sum())
+                record["elements"] += events.numel()
+            return hook
+        handles = [module.register_forward_hook(observe(name))
+                   for name, module in model.action_head.named_modules()
+                   if isinstance(module, FunctionalPLIF)]
+    try:
+        predictions=model(instructions,trainer.move_samples_to_device(images,device),states.to(device))
+    finally:
+        for handle in handles:
+            handle.remove()
     loss=trainer.masked_l1_loss(predictions,targets.to(device),mask.to(device))
     if not torch.isfinite(loss):
         raise RuntimeError("Non-finite pure behavior-cloning loss")
     loss.backward()
     gradients=gradient_report(groups)
+    if args.action_head_type == "spike_sdsa":
+        from turbovla.models.components.wta_operators import running_norms
+        subgroups = {
+            "state_projection": list(model.action_head.state_projection.named_parameters()),
+            "action_readout": list(model.action_head.decoder.action_projection.named_parameters()),
+            "action_queries": list(model.action_head.decoder.action_queries.named_parameters()),
+        }
+        for index, layer in enumerate(model.action_head.decoder.layers):
+            subgroups[f"layer{index}_self_attention"] = list(layer.self_attn.named_parameters())
+            subgroups[f"layer{index}_cross_attention"] = list(layer.cross_attn.named_parameters())
+            subgroups[f"layer{index}_ffn"] = [(name, p) for name, p in layer.named_parameters()
+                                            if not name.startswith(("self_attn.", "cross_attn."))]
+        head_audit["gradients"] = gradient_report(subgroups)
+        counts = {int(value) for _, norm in running_norms(model.action_head)
+                  for value in norm.num_batches_tracked.tolist()}
+        if counts != {1}:
+            raise RuntimeError(f"Action-head BN updated during recomputation: {counts}")
+        head_audit.update(action_head_type=model.config.action.head_type,
+                          timesteps=model.config.action.spike_timesteps,
+                          norm_layers=len(running_norms(model.action_head)),
+                          bn_updates_per_timestep=sorted(counts), activity=activity)
     if any(p.grad is not None for p in model.text_encoder.bert.parameters()):
         raise RuntimeError("Frozen text backbone received gradients")
     result={"training_scope":"joint_except_frozen_text_backbone","source_policy_checkpoint":None,
@@ -166,7 +229,8 @@ def preflight(destination):
             "action_l1":float(loss),"optimizer_steps":0,"frames":frames,"gradients":gradients,
             "text_backbone_frozen":True,"text_projection_trainable":True,
             "mapped_grounding_tensors":report["mapped"],
-            "peak_gpu_allocated_gib":torch.cuda.max_memory_allocated()/2**30}
+            "peak_gpu_allocated_gib":torch.cuda.max_memory_allocated()/2**30,
+            "action_head_audit":head_audit}
     (destination/"result.json").write_text(json.dumps(result,indent=2)+"\n")
     emit("joint_bc_gradient_preflight_complete",**result)
 

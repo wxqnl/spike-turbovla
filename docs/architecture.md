@@ -1,40 +1,60 @@
-# 当前架构边界
+# 模型结构与实现边界
 
-此页描述2026-09-07发布的代码，不把计划中的改造记作已完成。
+更新：2026-09-11。本页对应已合入的模型代码；成功率与训练预算见[结果表](results.md)。
 
-视觉输入经过 SDT-V3 19M 和连续视觉投影；文本经过冻结的 SmoothSpike BERT T=4 和已校正、可训练的连续文本投影。之后六层重复：
+## 五版主线
 
-```text
-双向 Spike Cross-Attention
-    ↓
-ANN 文本 Self-Attention
-    ↓
-ANN 文本 FFN
-```
+| 模块 | 仅 Vision | + SmoothSpike | + 旧 Spike Cross | A | 原 AA |
+| --- | --- | --- | --- | --- | --- |
+| 视觉骨干 | SDT-V3 19M | 同左 | 同左 | 同左 | 同左 |
+| 冻结文本骨干 | ANN BERT | SmoothSpike T4 | SmoothSpike T4 | SmoothSpike T4 | SmoothSpike T4 |
+| 视觉 / 文本投影 | ANN | ANN | ANN | Signed PLIF + 时序 BN | 同 A |
+| 双向 Cross | ANN | ANN | 二值 SDSA / PLIF | 保留旧 SDSA | 同 A |
+| 六层文本 Self-Attention / FFN | ANN | ANN | ANN | Signed WTA / Spike FFN | 同 A |
+| 状态投影 / ACT 动作解码 | ANN | ANN | ANN | ANN | Spike SDSA T4 |
+| 连续动作输出 | 12 × 7 | 12 × 7 | 12 × 7 | 12 × 7 | 12 × 7 |
 
-最终视觉和文本 token 一同进入 ANN 状态投影 / ACT 动作解码器，输出12×7连续动作。文本 ANN 分支参与推理，并影响后续 Cross；它不是辅助训练分支。
+`ann` 预设仍可使用 DINOv3 + ANN BERT + ANN Cross；它是另一个训练入口，主表没有为它补造本项目全量成绩。SmoothSpike 校准版是已训练 Vision 策略的后处理版本，不等同于新运行 `--preset vision_text`。
 
-## 已实现的 Spike Cross 核心
+## 旧 Spike Cross
 
-`turbovla/models/components/spike_fusion.py` 实现双向 SDSA 式跨模态注意力。PLIF前向输出0/1脉冲，反向使用替代梯度。输入投影、Q/K/V与输出投影的输入均经过脉冲神经元；注意力使用 `(Q Kᵀ) V`，没有 Softmax。两个方向使用独立、与有效源长度相关的阈值。
+`turbovla/models/components/spike_fusion.py` 保留双向 SDSA 式 Cross：Q/K/V 为二值事件，使用无 Softmax 的重合计数；PLIF 的膜电位只存在于本次 forward 的 T=4 循环。每个时间步先投影，再均值读出。LayerNorm、残差、DropPath 和连续膜电位仍存在。
 
-膜电位状态只存在于当前 forward 的T=4循环内，不跨batch累积。每个时间步先投影脉冲输出，再进行时间平均。仍保留连续 LayerNorm、膜电位、残差和时间读出。
+旧 Cross 版本的文本 Self-Attention、FFN、投影及动作头都是 ANN。该 Cross 是对 [Spike-driven Transformer V2](https://arxiv.org/abs/2404.03663) 思路的本项目适配，没有官方跨模态预训练权重。
 
-SDSA式 Cross 是本项目对 [Spike-driven Transformer V2](https://arxiv.org/abs/2404.03663) 的跨模态适配，没有现成的官方 Cross 预训练权重。连续膜电位与膜电位残差并不自动否定 spike-driven；但当前动态归一化和其余 ANN 模块不能被计作纯脉冲突触运算。
+## A：补齐投影和文本交互
 
-SDT-V3 使用官方多级 SFA 表达，不应把整个视觉路径描述成处处二值。SmoothSpike 的全局 H1 与逆变换仍保留，H2/H3已融合进权重。文本接口校正与这些 Hadamard 变换是两件不同的事。
+配置为 `backbone_type=spike_text_only`、`cross_attention_type=spike_sdsa`、`text_only_spike_projections=true`。
 
-## 训练与声明
+- 视觉 / 文本投影使用 {-1,0,+1} 的双极性 PLIF 事件、Linear 和按时间步统计的 masked BN。它们先做 T=4 均值读出，再进入旧 Cross。
+- 每个文本块使用 Signed WTA Self-Attention（文本 top-k=3）和 Spike FFN；每层在自己的 T=4 循环后读出。
+- 旧 Cross 的二值 Q/K/V、LayerNorm、DropPath=0.1、残差风格与内部 T=4 不变。A 没有将 Cross 换成 WTA。
+- 新增时序 BN 为 53 层：投影 5 层、六个文本块共 48 层。动作头仍是原 ANN ACT。
 
-当前训练同时更新视觉、投影、融合、文本交互与动作头，只有预训练文本骨干冻结。这是冻结语言编码器条件下的联合训练，不是所有参数都更新。
+主要实现：`spike_text_only.py`、`wta_fusion.py`、`wta_operators.py` 与 `turbovla.py`。保留 `text_only_spike_projections=false` 只为兼容早期 ANN 投影的历史 A；它不是本表的 A，也不能与新版 A 直接互续训练。
 
-当前融合属于 SNN–ANN 混合架构。稠密 PyTorch/GPU仿真不构成实测节能证据。低训练损失也不能替代LIBERO rollout结果。
+## AA：在 A 上更换完整动作头
 
-## 后续计划，尚未实现
+配置在 A 基础上增加 `action.head_type=spike_sdsa`，实现位于 `turbovla/models/spike_action_head.py`。
 
-- 将六层文本 Self-Attention 与 FFN 一并改成脉冲驱动计算。
-- 对齐投影接口、膜电位残差、推理可折叠归一化与融合内部时间维。
-- 重新校准脉冲投影，保留训练侧语义对齐目标。
-- 之后再改状态投影、动作解码器，并核对全模型的输入/输出读出边界。
+输入是 A 已读出的视觉 / 文本 memory 和 8 维状态。状态投影生成两个状态 token；三层 ACT 解码器在 T=4 内执行 Self-Attention、Cross-Attention 和 FFN，再通过三层脉冲驱动读出预测 12 × 7 动作。
 
-这些修改未包含在本次发布里，也没有修改正在进行的训练。
+注意力 Q/K/V 是 0/1 事件；状态、FFN 和读出投影使用有符号单位事件。最终输出为 `tanh(mean_T(linear(events)))`，保持连续动作。masked 时序 BN、连续残差和膜电位不被计作纯脉冲突触计算。状态在每个观测的 forward 内重置，不跨控制回合累计。
+
+原 AA 默认 `spike_state_population=0`、`spike_state_population_range=4`、`spike_state_attention_gain=1`。可选修复版使用 32、4、4：增加固定错相阈值的群体编码残差，并在二值重合计算之后加权状态贡献。它有独立结果和额外训练预算，不覆盖原 AA。
+
+## B：保留的补充实验
+
+B 的配置为 `backbone_type=spike_wta`、`cross_attention_type=spike_wta`。投影至六层融合一直保留 T=4，最后统一读出；Signed WTA Cross 两个方向分别选最多 3 个文本 source、8 个视觉 source，动作头仍是 ANN。
+
+因此 A/B 不只改变一个 Cross 算子：Cross 的归一化、残差、DropPath 及时间组织也不同。B 的实现和 `train_wta.py` 保留，但不拿它替换主表中的旧 Cross。
+
+早期 `spike_temporal` 代码仅作为历史兼容路径保留，没有在本次主表中给它附加成绩。未通过筛选的 AA-v2 候选仍在独立实验快照，没有合入这些默认模型。
+
+## 训练、EMA 与部署
+
+所有正式联合训练都冻结预训练文本骨干，更新视觉、投影、融合及动作模块。这是“冻结语言骨干条件下的联合训练”，不是全部参数都训练。
+
+A / AA / B 的 EMA 必须在 checkpoint 记录的训练数据上刷新视觉 BN 与新时序 BN。当前正式结果使用 128 批 × 每批 16 帧、0 个优化步骤。评估加载器拒绝未刷新的 EMA；训练续跑使用原训练 checkpoint，不能使用 evaluation-only 导出。梯度重计算保护 BN，避免同一个时间步因重算重复更新统计。
+
+SDT-V3 保留其多级 SFA 表达；SmoothSpike 保留全局 H1 及逆变换，H2/H3 已融合进权重。不能把整个策略描述成处处二值。GPU 实现仍使用稠密张量；当前结果没有给出实测节能、稀疏硬件加速或未见语言泛化证据。

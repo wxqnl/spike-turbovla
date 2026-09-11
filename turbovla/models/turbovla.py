@@ -5,6 +5,7 @@ from typing import Any, Mapping, Sequence
 
 import torch
 from torch import nn
+from torch.utils.checkpoint import checkpoint
 
 from .action_head import TurboVLAActionHead
 from .components.fusion import BiAttentionBlock
@@ -57,7 +58,7 @@ class VisionLanguageInteraction(nn.Module):
             drop_path=config.fusion_droppath,
             residual_style=config.residual_style,
             attention_backend=config.attention_backend,
-            cross_attention_type=config.cross_attention_type,
+            cross_attention_type="spike_sdsa" if config.backbone_type == "spike_wta" else config.cross_attention_type,
             cross_timesteps=config.cross_timesteps,
             cross_gradient_checkpointing=config.cross_gradient_checkpointing,
         )
@@ -142,6 +143,57 @@ class TurboVLA(nn.Module):
             nheads=config.interaction.nheads,
             dim_feedforward=config.interaction.dim_feedforward,
         )
+        if config.interaction.backbone_type == "spike_text_only":
+            from .components.spike_text_only import SpikeTextEncoderLayer
+            # Keep the original Cross objects and their initialization.
+            # Projection replacement, when requested, is separate below.
+            with torch.random.fork_rng(devices=[]):
+                self.vision_language_interaction.text_layers = nn.ModuleList(
+                    [SpikeTextEncoderLayer(config.interaction)
+                     for _ in range(config.interaction.num_layers)]
+                )
+        self.temporal_spike = config.interaction.backbone_type in {"spike_temporal", "spike_wta"}
+        self.spike_projectors = self.temporal_spike or config.interaction.text_only_spike_projections
+        if self.spike_projectors:
+            from .components.temporal_fusion import (
+                SpikeTextProjection, SpikeVisionProjection, TemporalSpikeInteraction,
+            )
+            projection_options = {}
+            if config.interaction.backbone_type == "spike_wta" or config.interaction.text_only_spike_projections:
+                from .components.wta_fusion import (
+                    WTATextProjection as SpikeTextProjection,
+                    WTAVisionProjection as SpikeVisionProjection,
+                    WTASpikeInteraction as TemporalSpikeInteraction,
+                )
+                projection_options = {"config": config.interaction}
+            # Preserve initialization of the unchanged encoders and action head.
+            with torch.random.fork_rng(devices=[]):
+                old = self.text_encoder.text_projection
+                projection = SpikeTextProjection(old.in_features, old.out_features, **projection_options)
+                projection.load_common_projection(old.state_dict())
+                self.text_encoder.text_projection = projection
+                old = self.vision_projection
+                projection = SpikeVisionProjection(
+                    old.skip.in_features, old.skip.out_features, old.mlp[0].out_features,
+                    **projection_options,
+                )
+                projection.linear1.load_state_dict(old.mlp[0].state_dict())
+                projection.linear2.load_state_dict(old.mlp[3].state_dict())
+                projection.skip.load_state_dict(old.skip.state_dict())
+                self.vision_projection = projection
+                if self.temporal_spike:
+                    self.vision_language_interaction = TemporalSpikeInteraction(config.interaction)
+        if config.action.head_type == "spike_sdsa":
+            from .spike_action_head import SpikeTurboVLAActionHead
+            # Finish A's original constructor first. Replacing the head must not
+            # change initialization/RNG consumption of any unchanged component.
+            with torch.random.fork_rng(devices=[]):
+                head = SpikeTurboVLAActionHead(
+                    config.action, hidden_dim, config.interaction.nheads,
+                    config.interaction.dim_feedforward, config.interaction,
+                )
+                head.load_common(self.action_head)
+                self.action_head = head
 
     def _normalize_samples(self, samples: torch.Tensor | Mapping[str, torch.Tensor]) -> torch.Tensor:
         if isinstance(samples, Mapping):
@@ -174,6 +226,13 @@ class TurboVLA(nn.Module):
     def encode_vision(self, pixel_values: torch.Tensor) -> torch.Tensor:
         tokens = self.vision_encoder(pixel_values)
         tokens = tokens.to(dtype=self.vision_projection.skip.weight.dtype)
+        if self.spike_projectors:
+            state = {}
+            sequence = [
+                self._position_visual_tokens(self.vision_projection.forward_step(tokens, state, time_index=t)).flatten(1, 2)
+                for t in range(self.config.interaction.cross_timesteps)
+            ]
+            return torch.stack(sequence).mean(0)
         tokens = self.vision_projection(tokens)
         return self._position_visual_tokens(tokens).flatten(1, 2)
 
@@ -186,6 +245,44 @@ class TurboVLA(nn.Module):
     ) -> torch.Tensor | tuple[torch.Tensor, Any]:
         pixel_values = self._normalize_samples(samples)
         device = pixel_values.device
+        if (self.config.interaction.backbone_type == "spike_text_only" and not self.training
+                and not self.vision_language_interaction.text_layers[0].norms["input"].calibrating
+                and pixel_values.shape[0] > 1):
+            if len(instructions) != pixel_values.shape[0]:
+                raise ValueError("Instruction batch size does not match image batch size")
+            # Fixed B=1 spike inference, as for the full-WTA variant. Training
+            # and training-stat refresh still use the real requested batch.
+            rows = [self.encode_condition(
+                [instruction], pixel_values[i:i+1], return_visual_tokens,
+                return_distillation_features) for i, instruction in enumerate(instructions)]
+            if return_distillation_features:
+                return torch.cat([row[0] for row in rows]), {
+                    key: torch.cat([row[1][key] for row in rows]) for key in rows[0][1]}
+            if return_visual_tokens:
+                return tuple(torch.cat([row[index] for row in rows]) for index in (0, 1))
+            return torch.cat(rows)
+        if self.spike_projectors:
+            if len(instructions) != pixel_values.shape[0]:
+                raise ValueError("Instruction batch size does not match image batch size")
+            if (self.config.interaction.backbone_type == "spike_wta" and not self.training
+                    and not self.text_encoder.text_projection.input_norm.calibrating
+                    and pixel_values.shape[0] > 1):
+                # Hard thresholds can amplify batch-shape-dependent GEMM
+                # roundoff. Keep the complete spike inference path at B=1,
+                # matching online robot observations; training/BN refresh stay
+                # truly batched. No rounding, smoothing or cached embeddings.
+                rows = [self._encode_temporal_condition(
+                    [instruction], pixel_values[i:i+1], return_visual_tokens,
+                    return_distillation_features) for i, instruction in enumerate(instructions)]
+                if return_distillation_features:
+                    return torch.cat([row[0] for row in rows]), {
+                        key: torch.cat([row[1][key] for row in rows]) for key in rows[0][1]}
+                if return_visual_tokens:
+                    return tuple(torch.cat([row[index] for row in rows]) for index in (0, 1))
+                return torch.cat(rows)
+            return self._encode_temporal_condition(
+                instructions, pixel_values, return_visual_tokens, return_distillation_features
+            )
         precision_context = nullcontext()
         if self.config.interaction.compute_precision == "bf16_autocast" and device.type == "cuda":
             precision_context = torch.autocast(device_type="cuda", dtype=torch.bfloat16)
@@ -216,6 +313,54 @@ class TurboVLA(nn.Module):
                 return condition, projected_visual_tokens
             return condition
 
+    def _encode_temporal_condition(
+        self, instructions, pixel_values, return_visual_tokens=False, return_distillation_features=False
+    ):
+        hidden, valid_tokens, sentence_allowed = self.text_encoder.encode_bert_hidden(
+            instructions, pixel_values.device
+        )
+        if hidden.shape[0] != pixel_values.shape[0]:
+            raise ValueError("Instruction batch size does not match image batch size")
+        hidden = hidden.to(self.text_encoder.text_projection.weight.dtype)
+        raw_visual = self.vision_encoder(pixel_values).to(self.vision_projection.skip.weight.dtype)
+        valid = valid_tokens[..., None]
+        def project(vision, text):
+            v_state, l_state = {}, {}
+            visual, language = [], []
+            for t in range(self.config.interaction.cross_timesteps):
+                current = self.vision_projection.forward_step(vision, v_state, time_index=t)
+                visual.append(self._position_visual_tokens(current).flatten(1, 2))
+                language.append(self.text_encoder.text_projection.forward_step(text, l_state, valid, time_index=t))
+            return torch.stack(visual), torch.stack(language)
+
+        if (self.training and torch.is_grad_enabled()
+                and self.config.interaction.projection_gradient_checkpointing):
+            from .components.wta_operators import checkpoint_contexts
+            visual, language = checkpoint(
+                project, raw_visual, hidden, use_reentrant=False, context_fn=checkpoint_contexts)
+        else:
+            visual, language = project(raw_visual, hidden)
+        initial_visual, initial_text = visual, language
+        if not self.temporal_spike:
+            # Original Cross accepts [B,N,C] and owns its existing T=4 loop.
+            # Read out the two spike projections once; do not wrap Cross in T.
+            visual, language = visual.mean(0), language.mean(0)
+        visual, language = self.vision_language_interaction(
+            visual, language, ~valid_tokens, sentence_allowed
+        )
+        if self.temporal_spike:
+            # Full temporal fusion keeps T until this final policy readout.
+            visual, language = visual.mean(0), language.mean(0)
+        condition = torch.cat([visual, language], dim=1)
+        if return_distillation_features:
+            return condition, {
+                "visual": initial_visual.mean(0), "text": initial_text.mean(0),
+                "text_valid": valid_tokens,
+            }
+        if return_visual_tokens:
+            return condition, initial_visual.mean(0)
+        return condition
+
     def forward(
         self,
         instructions: Sequence[str],
@@ -224,22 +369,34 @@ class TurboVLA(nn.Module):
         return_visual_tokens: bool = False,
         return_distillation_features: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, Any]:
+        spike_action_head = self.config.action.head_type == "spike_sdsa"
+        need_features = return_distillation_features or spike_action_head
         encoded = self.encode_condition(
             instructions, samples, return_visual_tokens=return_visual_tokens,
-            return_distillation_features=return_distillation_features,
+            return_distillation_features=need_features,
         )
-        if return_distillation_features:
+        if need_features:
             condition, features = encoded
         elif return_visual_tokens:
             condition, visual_tokens = encoded
         else:
             condition = encoded
         action_dtype = self.action_head.decoder.action_queries.weight.dtype
-        actions = self.action_head(condition.to(dtype=action_dtype), state.to(dtype=action_dtype))
+        condition, state = condition.to(dtype=action_dtype), state.to(dtype=action_dtype)
+        if spike_action_head:
+            text_valid = features["text_valid"]
+            visual_padding = torch.zeros(
+                (condition.shape[0], condition.shape[1] - text_valid.shape[1]),
+                dtype=torch.bool, device=condition.device,
+            )
+            padding = torch.cat((visual_padding, ~text_valid), dim=1)
+            actions = self.action_head(condition, state, memory_key_padding_mask=padding)
+        else:
+            actions = self.action_head(condition, state)
         if return_distillation_features:
             return actions, features
         if return_visual_tokens:
-            return actions, visual_tokens
+            return actions, features["visual"] if spike_action_head else visual_tokens
         return actions
 
     # Transitional read-only names used only by legacy checkpoint initialization.
@@ -316,8 +473,12 @@ def build_turbovla(args: TurboVLAConfig | Mapping[str, Any] | Any) -> TurboVLA:
                 pretrained_checkpoint=_arg(args, "vision_pretrained_checkpoint", None),
                 model_source_path=_arg(args, "vision_model_source_path", None),
                 output_grid_size=int(_arg(args, "vision_output_grid_size", 14)),
+                gradient_checkpointing=bool(_arg(args, "vision_gradient_checkpointing", False)),
+                checkpoint_scope=str(_arg(args, "vision_checkpoint_scope", "all")),
             ),
             interaction=InteractionConfig(
+                backbone_type=str(_arg(args, "fusion_backbone_type", "hybrid")),
+                text_only_spike_projections=bool(_arg(args, "text_only_spike_projections", False)),
                 hidden_dim=int(_arg(args, "hidden_dim", 256)),
                 nheads=int(_arg(args, "nheads", 8)),
                 num_layers=int(_arg(args, "vla_feature_enhancer_layers", 6)),
@@ -333,8 +494,21 @@ def build_turbovla(args: TurboVLAConfig | Mapping[str, Any] | Any) -> TurboVLA:
                 cross_attention_type=str(_arg(args, "cross_attention_type", "ann")),
                 cross_timesteps=int(_arg(args, "cross_timesteps", 4)),
                 cross_gradient_checkpointing=bool(_arg(args, "cross_gradient_checkpointing", True)),
+                projection_gradient_checkpointing=bool(_arg(args, "projection_gradient_checkpointing", False)),
+                wta_text_topk=int(_arg(args, "wta_text_topk", 3)),
+                wta_vision_topk=int(_arg(args, "wta_vision_topk", 8)),
+                wta_surrogate_temperature=float(_arg(args, "wta_surrogate_temperature", 1.0)),
+                spike_norm_momentum=float(_arg(args, "spike_norm_momentum", 0.1)),
+                spike_norm_eps=float(_arg(args, "spike_norm_eps", 1e-5)),
+                spike_norm_sync=bool(_arg(args, "spike_norm_sync", True)),
             ),
             action=ActionHeadConfig(
+                head_type=str(_arg(args, "action_head_type", "ann")),
+                spike_timesteps=int(_arg(args, "cross_timesteps", 4)),
+                spike_gradient_checkpointing=bool(_arg(args, "action_head_gradient_checkpointing", True)),
+                spike_state_population=int(_arg(args, "spike_state_population", 0)),
+                spike_state_population_range=float(_arg(args, "spike_state_population_range", 4.0)),
+                spike_state_attention_gain=float(_arg(args, "spike_state_attention_gain", 1.0)),
                 action_dim=int(_arg(args, "action_dim", 7)),
                 state_dim=int(_arg(args, "state_dim", 8)),
                 horizon=int(_arg(args, "chunk_size", _arg(args, "action_horizon", 12))),

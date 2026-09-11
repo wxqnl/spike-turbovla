@@ -32,6 +32,20 @@ class Pi05AdamW(torch_optim.AdamW):
                 if param.requires_grad and param.is_floating_point():
                     self._ema_params[param] = param.detach().clone()
 
+    def restore_ema(self, checkpoint):
+        state = checkpoint.get("ema_model_state_dict")
+        if not isinstance(state, dict):
+            raise ValueError("Full pi0.5 resume requires the saved EMA parameters")
+        decay = float(checkpoint.get("ema_decay", EMA_DECAY))
+        if not 0 < decay < 1:
+            raise ValueError("Invalid saved EMA decay")
+        self.ema_decay = decay
+        with trainer.torch.no_grad():
+            for param, name in self._ema_param_names.items():
+                if name not in state or state[name].shape != param.shape:
+                    raise ValueError(f"Missing/incompatible resumed EMA parameter: {name}")
+                self._ema_params[param].copy_(state[name])
+
     def step(self, closure=None):
         result = super().step(closure=closure)
         decay = self.ema_decay
@@ -103,8 +117,11 @@ def torch_save_with_pi05_ema(obj, *args, **kwargs):
                     ema_tensor = optimizer._ema_params[param].detach()
                     ema_state[name] = ema_tensor.to(device="cpu", dtype=ema_state[name].dtype)
             obj = dict(obj)
-            obj["ema_decay"] = EMA_DECAY
+            obj["ema_decay"] = optimizer.ema_decay
             obj["ema_model_state_dict"] = ema_state
+            if obj.get("model_config", {}).get("interaction", {}).get("backbone_type") in {"spike_wta", "spike_text_only"}:
+                from .wta_norms import normalization_metadata
+                obj["wta_normalization"] = normalization_metadata(ema=True)
     return _ORIGINAL_TORCH_SAVE(obj, *args, **kwargs)
 
 

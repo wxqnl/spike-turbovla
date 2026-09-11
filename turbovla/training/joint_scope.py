@@ -38,13 +38,23 @@ def load_calibrated_projection(model, args):
     state = payload["text_projection"]
     if set(state) != {"weight", "bias"} or not all(torch.isfinite(p).all() for p in state.values()):
         raise ValueError("Invalid projection-only initialization")
-    model.text_encoder.text_projection.load_state_dict(state, strict=True)
+    projection = model.text_encoder.text_projection
+    if model.spike_projectors:
+        projection.load_common_projection(state)
+    else:
+        projection.load_state_dict(state, strict=True)
     if not all(p.requires_grad for p in model.text_encoder.text_projection.parameters()):
         raise RuntimeError("Calibrated text projection must remain trainable")
     return metadata
 
 
 def check_preload(model, report):
+    if model.config.interaction.backbone_type in {"spike_temporal", "spike_wta", "spike_text_only"}:
+        from .temporal_fusion import common_pretrained_names
+        expected = len(common_pretrained_names(model))
+        if report["mapped"] != expected or report["skipped_missing"] or report["skipped_shape"]:
+            raise RuntimeError(f"Incomplete common initialization for temporal fusion: {report}")
+        return
     expected = sum(
         key.startswith("vision_language_interaction.") and ".spike_nodes." not in key
         for key in model.state_dict()
@@ -54,8 +64,10 @@ def check_preload(model, report):
 
 
 def joint_scope(model, args):
-    if args.resume_mode != "none" or args.freeze_backbones or not args.freeze_text_encoder:
-        raise ValueError("Joint stage requires fresh initialization and only a frozen text backbone")
+    wta_full_resume = (args.resume_mode == "all"
+                       and model.config.interaction.backbone_type in {"spike_wta", "spike_text_only"})
+    if (args.resume_mode != "none" and not wta_full_resume) or args.freeze_backbones or not args.freeze_text_encoder:
+        raise ValueError("Joint stage requires fresh initialization (or full WTA resume) and only frozen text")
     if model.config.vision.frozen or not model.config.text.frozen:
         raise ValueError("Incorrect vision/text gradient configuration")
     # DINOv3's unused masked-image token is frozen by the existing vision adapter.

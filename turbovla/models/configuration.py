@@ -38,10 +38,16 @@ class VisionEncoderConfig:
     pretrained_checkpoint: str | None = None
     model_source_path: str | None = None
     output_grid_size: int = 14
+    gradient_checkpointing: bool = False
+    checkpoint_scope: str = "all"
 
 
 @dataclass
 class InteractionConfig:
+    backbone_type: str = "hybrid"
+    # Optional projection upgrade for the old-Cross / new-text variant.
+    # False preserves previously saved text-only checkpoints.
+    text_only_spike_projections: bool = False
     hidden_dim: int = 256
     nheads: int = 8
     num_layers: int = 6
@@ -50,6 +56,8 @@ class InteractionConfig:
     text_dropout: float = 0.0
     fusion_dropout: float = 0.0
     fusion_droppath: float = 0.1
+    # These three switches apply to hybrid only. spike_temporal has a fixed
+    # membrane-residual, explicit spike-attention, padding-isolated contract.
     padding_strategy: str = "key_padding_mask"
     residual_style: str = "normalized"
     attention_backend: str = "manual"
@@ -57,10 +65,23 @@ class InteractionConfig:
     cross_attention_type: str = "ann"
     cross_timesteps: int = 4
     cross_gradient_checkpointing: bool = True
+    projection_gradient_checkpointing: bool = False
+    wta_text_topk: int = 3
+    wta_vision_topk: int = 8
+    wta_surrogate_temperature: float = 1.0
+    spike_norm_momentum: float = 0.1
+    spike_norm_eps: float = 1e-5
+    spike_norm_sync: bool = True
 
 
 @dataclass
 class ActionHeadConfig:
+    head_type: str = "ann"
+    spike_timesteps: int = 4
+    spike_gradient_checkpointing: bool = True
+    spike_state_population: int = 0
+    spike_state_population_range: float = 4.0
+    spike_state_attention_gain: float = 1.0
     action_dim: int = 7
     state_dim: int = 8
     horizon: int = 12
@@ -122,8 +143,39 @@ class TurboVLAConfig:
             raise ValueError("interaction.residual_style must be normalized or pre_norm")
         if self.interaction.attention_backend not in {"manual", "sdpa"}:
             raise ValueError("interaction.attention_backend must be manual or sdpa")
-        if self.interaction.cross_attention_type not in {"ann", "spike_sdsa"}:
-            raise ValueError("interaction.cross_attention_type must be ann or spike_sdsa")
+        if self.interaction.cross_attention_type not in {"ann", "spike_sdsa", "spike_wta"}:
+            raise ValueError("interaction.cross_attention_type must be ann, spike_sdsa, or spike_wta")
+        if self.interaction.backbone_type not in {"hybrid", "spike_temporal", "spike_wta", "spike_text_only"}:
+            raise ValueError("interaction.backbone_type must be hybrid, spike_temporal, spike_wta, or spike_text_only")
+        if self.interaction.cross_attention_type == "spike_wta" and self.interaction.backbone_type != "spike_wta":
+            raise ValueError("spike_wta attention requires the full spike_wta backbone")
+        if self.interaction.text_only_spike_projections and self.interaction.backbone_type != "spike_text_only":
+            raise ValueError("text_only_spike_projections applies only to spike_text_only")
+        if self.interaction.backbone_type == "spike_text_only":
+            if self.interaction.cross_attention_type != "spike_sdsa":
+                raise ValueError("spike_text_only preserves the original spike_sdsa Cross")
+            if self.interaction.text_dropout != 0 or self.interaction.compute_precision != "fp32":
+                raise ValueError("Spike text replacement requires zero text dropout and fp32")
+            if self.interaction.padding_strategy != "key_padding_mask":
+                raise ValueError("Spike text replacement requires explicit padding isolation")
+            # Cross DropPath and residual style keep their original values;
+            # optional spike projections do not imply the full-WTA Cross.
+        if self.interaction.backbone_type in {"spike_temporal", "spike_wta"}:
+            expected = "spike_wta" if self.interaction.backbone_type == "spike_wta" else "spike_sdsa"
+            if self.interaction.cross_attention_type != expected:
+                raise ValueError(f"{self.interaction.backbone_type} requires cross_attention_type={expected}")
+            if self.interaction.text_dropout != 0 or self.interaction.fusion_dropout != 0:
+                raise ValueError("Temporal spike fusion requires zero attention/text dropout")
+            if self.interaction.fusion_droppath != 0:
+                raise ValueError("Temporal spike fusion uses membrane residuals without DropPath; set fusion_droppath=0")
+            if self.interaction.compute_precision != "fp32":
+                raise ValueError("Temporal spike fusion initially requires fp32")
+        if min(self.interaction.wta_text_topk, self.interaction.wta_vision_topk) < 1:
+            raise ValueError("WTA budgets must be positive")
+        if self.interaction.wta_surrogate_temperature <= 0 or self.interaction.spike_norm_eps <= 0:
+            raise ValueError("WTA temperature and normalization epsilon must be positive")
+        if not 0 < self.interaction.spike_norm_momentum <= 1:
+            raise ValueError("spike_norm_momentum must be in (0,1]")
         if self.interaction.cross_timesteps < 1:
             raise ValueError("interaction.cross_timesteps must be positive")
         if self.interaction.cross_attention_type == "spike_sdsa" and self.interaction.fusion_dropout != 0:
@@ -132,6 +184,19 @@ class TurboVLAConfig:
             raise ValueError("interaction.compute_precision must be fp32 or bf16_autocast")
         if self.action.action_dim < 1 or self.action.state_dim < 1 or self.action.horizon < 1:
             raise ValueError("action dimensions and horizon must be positive")
+        if self.action.head_type not in {"ann", "spike_sdsa"}:
+            raise ValueError("action.head_type must be ann or spike_sdsa")
+        if self.action.head_type == "spike_sdsa":
+            if self.action.spike_state_population < 0:
+                raise ValueError("spike_state_population must be nonnegative")
+            if self.action.spike_state_population_range <= 0 or self.action.spike_state_attention_gain <= 0:
+                raise ValueError("Population range and state attention gain must be positive")
+            if self.interaction.backbone_type != "spike_text_only":
+                raise ValueError("AA preserves A's spike_text_only fusion")
+            if self.action.spike_timesteps != self.interaction.cross_timesteps:
+                raise ValueError("AA action and temporal BN must use the same T")
+            if self.action.dropout != 0 or self.vision.compute_precision != "fp32":
+                raise ValueError("AA requires zero action dropout and FP32 vision")
 
     @property
     def sentence_mask_version(self) -> str:

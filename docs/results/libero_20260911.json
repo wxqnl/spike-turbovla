@@ -1,0 +1,2512 @@
+{
+  "schema_version": 1,
+  "updated": "2026-09-11",
+  "benchmark": "LIBERO",
+  "main_model_order": [
+    "vision70k",
+    "smoothspike_calibrated",
+    "cross50k_high",
+    "A",
+    "AA"
+  ],
+  "supplementary_model_order": [
+    "B",
+    "AA_statefix_1875"
+  ],
+  "count_check": "Each included evaluation has 40 task results, 50 episodes per task, matching task/suite/overall counts and zero task/overall exit codes. No rollout was rerun for this release.",
+  "comparison_scope": "Single training seed and fixed evaluation episodes. Training histories, initialization, microbatch, number of updates, masks and numerics differ; this is a descriptive comparison, not a controlled single-variable ablation or a significance claim.",
+  "common_evaluation": {
+    "suites": 4,
+    "tasks_per_suite": 10,
+    "episodes_per_task": 50,
+    "initial_state_ids": "0-49",
+    "seed": 7,
+    "precision": "fp32",
+    "action_chunk": 12,
+    "open_loop_steps": 12,
+    "num_steps_wait": 10,
+    "control_mode": "relative",
+    "env_img_res": 256
+  },
+  "artifacts": "Weights, datasets, videos and full logs remain on the experiment servers; this release contains code and compact result records only.",
+  "models": [
+    {
+      "id": "vision70k",
+      "source_host": "node42",
+      "summary_path": "experiments/spike-turbovla/libero/eval_sdtv3_vision_70000_ema_2000_gpu23_20260907/summary.json",
+      "evaluation_checkpoint": "/data/Minko/experiments/spike-turbovla/libero/sdtv3_vision_gripperfix_seed42_bs128_3gpu_70k_20260904/checkpoints/sdtv3_vision_70000.pth",
+      "finished_at": "2026-09-08T00:19:39.445849+08:00",
+      "episodes": 2000,
+      "successes": 1777,
+      "success_rate": 0.8885,
+      "suites": {
+        "libero_spatial": {
+          "successes": 453,
+          "episodes": 500,
+          "success_rate": 0.906
+        },
+        "libero_object": {
+          "successes": 469,
+          "episodes": 500,
+          "success_rate": 0.938
+        },
+        "libero_goal": {
+          "successes": 462,
+          "episodes": 500,
+          "success_rate": 0.924
+        },
+        "libero_10": {
+          "successes": 393,
+          "episodes": 500,
+          "success_rate": 0.786
+        }
+      },
+      "protocol": {
+        "precision": "fp32",
+        "checkpoint_weights": "ema",
+        "effective_sentence_mask": "legacy",
+        "effective_head_mask": "legacy",
+        "numerics": null,
+        "num_trials_per_task": 50,
+        "num_open_loop_steps": 12,
+        "seed": 7,
+        "control_mode": "relative",
+        "env_img_res": 256
+      },
+      "task_results": [
+        {
+          "suite": "libero_10",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 37,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 22,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 33,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 33,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 30,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 40,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 28,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 24,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 16,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        }
+      ],
+      "overall_exit_code": 0,
+      "label": "仅 Vision spike",
+      "training": {
+        "optimizer_steps": 70000,
+        "base_optimizer_steps": 0,
+        "gpus": 3,
+        "batch_per_gpu": 128,
+        "gradient_accumulation": 1,
+        "global_batch": 384,
+        "warmup_steps": 3334,
+        "lr_schedule_steps": 70000,
+        "sample_exposures": 26880000,
+        "seed": 42
+      },
+      "architecture": {
+        "vision": "SDT-V3 19M",
+        "text": "frozen ANN BERT",
+        "projection": "ANN",
+        "cross": "ANN",
+        "text_interaction": "ANN",
+        "action_head": "ANN"
+      }
+    },
+    {
+      "id": "smoothspike_calibrated",
+      "source_host": "node42",
+      "summary_path": "experiments/spike-turbovla/libero/eval_spike_text_projection_calibrated_2000_gpu23_20260907/summary.json",
+      "evaluation_checkpoint": "/data/Minko/experiments/spike-turbovla/libero/text_projection_calibration_20260907/spike_text_projection_calibrated.pth",
+      "finished_at": "2026-09-07T19:46:57.333879+08:00",
+      "episodes": 2000,
+      "successes": 1775,
+      "success_rate": 0.8875,
+      "suites": {
+        "libero_spatial": {
+          "successes": 451,
+          "episodes": 500,
+          "success_rate": 0.902
+        },
+        "libero_object": {
+          "successes": 465,
+          "episodes": 500,
+          "success_rate": 0.93
+        },
+        "libero_goal": {
+          "successes": 477,
+          "episodes": 500,
+          "success_rate": 0.954
+        },
+        "libero_10": {
+          "successes": 382,
+          "episodes": 500,
+          "success_rate": 0.764
+        }
+      },
+      "protocol": {
+        "precision": "fp32",
+        "checkpoint_weights": "raw",
+        "effective_sentence_mask": "legacy",
+        "effective_head_mask": "corrected",
+        "numerics": null,
+        "num_trials_per_task": 50,
+        "num_open_loop_steps": 12,
+        "seed": 7,
+        "control_mode": "relative",
+        "env_img_res": 256
+      },
+      "task_results": [
+        {
+          "suite": "libero_10",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 36,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 28,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 39,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 31,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 25,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 34,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 36,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 18,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 41,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 18,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        }
+      ],
+      "overall_exit_code": 0,
+      "label": "Vision + SmoothSpike（校准版）",
+      "training": {
+        "optimizer_steps": 0,
+        "base_model": "vision70k",
+        "base_optimizer_steps": 70000,
+        "base_global_batch": 384,
+        "base_gpus": 3,
+        "base_batch_per_gpu": 128,
+        "base_gradient_accumulation": 1,
+        "base_warmup_steps": 3334,
+        "additional_policy_sample_exposures": 0,
+        "seed": 42,
+        "method": "Post-hoc text projection calibration; inherited vision70k EMA policy, exported as raw weights."
+      },
+      "architecture": {
+        "vision": "SDT-V3 19M",
+        "text": "frozen SmoothSpike T4",
+        "projection": "ANN; calibrated text interface",
+        "cross": "ANN",
+        "text_interaction": "ANN",
+        "action_head": "ANN"
+      }
+    },
+    {
+      "id": "cross50k_high",
+      "source_host": "node42",
+      "summary_path": "experiments/spike-turbovla/libero/eval_sdtv3_smoothspike_cross_joint_50000_high_ema_2000_gpu23_20260908/summary.json",
+      "evaluation_checkpoint": "/data/Minko/experiments/spike-turbovla/libero/sdtv3_smoothspike_cross_joint_seed42_bs128_3gpu_70k_20260907/checkpoints/spike_cross_joint_50000.pth",
+      "finished_at": "2026-09-08T21:56:01.143092+08:00",
+      "episodes": 2000,
+      "successes": 1818,
+      "success_rate": 0.909,
+      "suites": {
+        "libero_spatial": {
+          "successes": 458,
+          "episodes": 500,
+          "success_rate": 0.916
+        },
+        "libero_object": {
+          "successes": 488,
+          "episodes": 500,
+          "success_rate": 0.976
+        },
+        "libero_goal": {
+          "successes": 475,
+          "episodes": 500,
+          "success_rate": 0.95
+        },
+        "libero_10": {
+          "successes": 397,
+          "episodes": 500,
+          "success_rate": 0.794
+        }
+      },
+      "protocol": {
+        "precision": "fp32",
+        "checkpoint_weights": "ema",
+        "effective_sentence_mask": "legacy",
+        "effective_head_mask": "corrected",
+        "numerics": {
+          "checkpoint_recorded": null,
+          "cuda_matmul_allow_tf32": true,
+          "cudnn_allow_tf32": true,
+          "float32_matmul_precision": "high",
+          "requested": "high"
+        },
+        "num_trials_per_task": 50,
+        "num_open_loop_steps": 12,
+        "seed": 7,
+        "control_mode": "relative",
+        "env_img_res": 256
+      },
+      "task_results": [
+        {
+          "suite": "libero_10",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 33,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 39,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 43,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 43,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 39,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 23,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 30,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 33,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 43,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 44,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 22,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        }
+      ],
+      "overall_exit_code": 0,
+      "label": "再加 Spike Cross（旧版，high 对齐）",
+      "training": {
+        "optimizer_steps": 50000,
+        "original_target_steps": 70000,
+        "gpus": 3,
+        "batch_per_gpu": 128,
+        "gradient_accumulation": 1,
+        "global_batch": 384,
+        "warmup_steps": 3334,
+        "lr_schedule_steps": 70000,
+        "sample_exposures": 19200000,
+        "seed": 42
+      },
+      "architecture": {
+        "vision": "SDT-V3 19M",
+        "text": "frozen SmoothSpike T4",
+        "projection": "ANN",
+        "cross": "binary SDSA / PLIF T4",
+        "text_interaction": "ANN",
+        "action_head": "ANN"
+      }
+    },
+    {
+      "id": "A",
+      "source_host": "node42",
+      "summary_path": "experiments/spike-turbovla/libero/sdtv3_smoothspike_fusionA_seed42_gbs384_2gpu_50k_20260908/evaluation/summary.json",
+      "evaluation_checkpoint": "/data/Minko/experiments/spike-turbovla/libero/sdtv3_smoothspike_fusionA_seed42_gbs384_2gpu_50k_20260908/evaluation/spike_text_projected_50000_ema_trainbn128x16.pth",
+      "finished_at": "2026-09-11T21:35:49.840420+08:00",
+      "episodes": 2000,
+      "successes": 1821,
+      "success_rate": 0.9105,
+      "suites": {
+        "libero_spatial": {
+          "successes": 477,
+          "episodes": 500,
+          "success_rate": 0.954
+        },
+        "libero_object": {
+          "successes": 497,
+          "episodes": 500,
+          "success_rate": 0.994
+        },
+        "libero_goal": {
+          "successes": 471,
+          "episodes": 500,
+          "success_rate": 0.942
+        },
+        "libero_10": {
+          "successes": 376,
+          "episodes": 500,
+          "success_rate": 0.752
+        }
+      },
+      "protocol": {
+        "precision": "fp32",
+        "checkpoint_weights": "ema",
+        "effective_sentence_mask": "legacy",
+        "effective_head_mask": "corrected",
+        "numerics": {
+          "checkpoint_recorded": "highest",
+          "cuda_matmul_allow_tf32": false,
+          "cudnn_allow_tf32": false,
+          "float32_matmul_precision": "highest",
+          "requested": "auto"
+        },
+        "num_trials_per_task": 50,
+        "num_open_loop_steps": 12,
+        "seed": 7,
+        "control_mode": "relative",
+        "env_img_res": 256
+      },
+      "task_results": [
+        {
+          "suite": "libero_10",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 35,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 44,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 44,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 36,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 36,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 38,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 35,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 38,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 20,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 44,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 44,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 42,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 44,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 42,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        }
+      ],
+      "overall_exit_code": 0,
+      "label": "A：脉冲投影 + 脉冲文本交互",
+      "training": {
+        "optimizer_steps": 50000,
+        "gpus": 2,
+        "global_batch": 384,
+        "warmup_steps": 3334,
+        "lr_schedule_steps": 70000,
+        "sample_exposures": 19200000,
+        "seed": 42,
+        "batch_phases": [
+          {
+            "from_step": 1,
+            "through_step": 5000,
+            "batch_per_gpu": 96,
+            "gradient_accumulation": 2
+          },
+          {
+            "from_step": 5001,
+            "through_step": 50000,
+            "batch_per_gpu": 192,
+            "gradient_accumulation": 1
+          }
+        ],
+        "resume": "Resumed model, optimizer, and EMA at saved step 5000; enabled full vision gradient checkpointing."
+      },
+      "architecture": {
+        "vision": "SDT-V3 19M",
+        "text": "frozen SmoothSpike T4",
+        "projection": "signed PLIF T4",
+        "cross": "unchanged old binary SDSA / PLIF T4",
+        "text_interaction": "signed WTA Self-Attention + spike FFN",
+        "action_head": "ANN"
+      }
+    },
+    {
+      "id": "AA",
+      "source_host": "node43",
+      "summary_path": "experiments/spike-turbovla/libero/fusionAA_spike_head_20260910/sdtv3_smoothspike_fusionAA_seed42_gbs1024_8gpu_18750steps_20260910/evaluation/summary.json",
+      "evaluation_checkpoint": "/data/Minko/experiments/spike-turbovla/libero/fusionAA_spike_head_20260910/sdtv3_smoothspike_fusionAA_seed42_gbs1024_8gpu_18750steps_20260910/evaluation/spike_aa_18750_ema_trainbn128x16.pth",
+      "finished_at": "2026-09-11T14:01:00.760474+08:00",
+      "episodes": 2000,
+      "successes": 1384,
+      "success_rate": 0.692,
+      "suites": {
+        "libero_spatial": {
+          "successes": 400,
+          "episodes": 500,
+          "success_rate": 0.8
+        },
+        "libero_object": {
+          "successes": 424,
+          "episodes": 500,
+          "success_rate": 0.848
+        },
+        "libero_goal": {
+          "successes": 333,
+          "episodes": 500,
+          "success_rate": 0.666
+        },
+        "libero_10": {
+          "successes": 227,
+          "episodes": 500,
+          "success_rate": 0.454
+        }
+      },
+      "protocol": {
+        "precision": "fp32",
+        "checkpoint_weights": "ema",
+        "effective_sentence_mask": "legacy",
+        "effective_head_mask": "corrected",
+        "numerics": {
+          "checkpoint_recorded": "highest",
+          "cuda_matmul_allow_tf32": false,
+          "cudnn_allow_tf32": false,
+          "float32_matmul_precision": "highest",
+          "requested": "auto"
+        },
+        "num_trials_per_task": 50,
+        "num_open_loop_steps": 12,
+        "seed": 7,
+        "control_mode": "relative",
+        "env_img_res": 256
+      },
+      "task_results": [
+        {
+          "suite": "libero_10",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 1,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 32,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 29,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 38,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 32,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 19,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 24,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 27,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 3,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 22,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 40,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 42,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 0,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 41,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 7,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 40,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 35,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 33,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 27,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 31,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 42,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 40,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 40,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 25,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 42,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 44,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 32,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 31,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 41,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        }
+      ],
+      "overall_exit_code": 0,
+      "label": "AA：A + 脉冲动作头（原版）",
+      "training": {
+        "optimizer_steps": 18750,
+        "gpus": 8,
+        "batch_per_gpu": 128,
+        "gradient_accumulation": 1,
+        "global_batch": 1024,
+        "warmup_steps": 1251,
+        "lr_schedule_steps": 18750,
+        "sample_exposures": 19200000,
+        "seed": 42,
+        "initialization": "Fresh common components; not continued from trained A or B."
+      },
+      "architecture": {
+        "vision": "SDT-V3 19M",
+        "text": "frozen SmoothSpike T4",
+        "projection": "same as A",
+        "cross": "same as A",
+        "text_interaction": "same as A",
+        "action_head": "T4 spike state projection + SDSA decoder + signed spike readout; continuous final actions"
+      }
+    },
+    {
+      "id": "B",
+      "source_host": "node43",
+      "summary_path": "experiments/spike-turbovla/libero/fusionB_8gpu_restart_20260909/sdtv3_smoothspike_fusionB_seed42_gbs1024_8gpu_18750steps_20260909/evaluation/summary.json",
+      "evaluation_checkpoint": "/data/Minko/experiments/spike-turbovla/libero/fusionB_8gpu_restart_20260909/sdtv3_smoothspike_fusionB_seed42_gbs1024_8gpu_18750steps_20260909/evaluation/spike_wta_18750_ema_trainbn128x16.pth",
+      "finished_at": "2026-09-10T12:03:23.578652+08:00",
+      "episodes": 2000,
+      "successes": 1703,
+      "success_rate": 0.8515,
+      "suites": {
+        "libero_spatial": {
+          "successes": 480,
+          "episodes": 500,
+          "success_rate": 0.96
+        },
+        "libero_object": {
+          "successes": 457,
+          "episodes": 500,
+          "success_rate": 0.914
+        },
+        "libero_goal": {
+          "successes": 452,
+          "episodes": 500,
+          "success_rate": 0.904
+        },
+        "libero_10": {
+          "successes": 314,
+          "episodes": 500,
+          "success_rate": 0.628
+        }
+      },
+      "protocol": {
+        "precision": "fp32",
+        "checkpoint_weights": "ema",
+        "effective_sentence_mask": "legacy",
+        "effective_head_mask": "corrected",
+        "numerics": {
+          "checkpoint_recorded": "highest",
+          "cuda_matmul_allow_tf32": false,
+          "cudnn_allow_tf32": false,
+          "float32_matmul_precision": "highest",
+          "requested": "auto"
+        },
+        "num_trials_per_task": 50,
+        "num_open_loop_steps": 12,
+        "seed": 7,
+        "control_mode": "relative",
+        "env_img_res": 256
+      },
+      "task_results": [
+        {
+          "suite": "libero_10",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 31,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 38,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 22,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 1,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 33,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 34,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 33,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 27,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 22,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 42,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 36,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 28,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        }
+      ],
+      "overall_exit_code": 0,
+      "label": "B：完整 WTA 融合",
+      "training": {
+        "optimizer_steps": 18750,
+        "gpus": 8,
+        "batch_per_gpu": 128,
+        "gradient_accumulation": 1,
+        "global_batch": 1024,
+        "warmup_steps": 1251,
+        "lr_schedule_steps": 18750,
+        "sample_exposures": 19200000,
+        "seed": 42,
+        "vision_gradient_checkpoint_scope": "early"
+      },
+      "architecture": {
+        "vision": "SDT-V3 19M",
+        "text": "frozen SmoothSpike T4",
+        "projection": "signed PLIF T4",
+        "cross": "signed multi-winner WTA, text top-k=3 / vision top-k=8",
+        "text_interaction": "signed WTA Self-Attention + spike FFN",
+        "action_head": "ANN"
+      }
+    },
+    {
+      "id": "AA_statefix_1875",
+      "source_host": "node43",
+      "summary_path": "experiments/spike-turbovla/libero/fusionAA_statefix_fulltrain_20260911/attempt2/sdtv3_smoothspike_fusionAA_statefix_seed42_gbs1024_8gpu_continue18750/evaluation_1875/summary.json",
+      "evaluation_checkpoint": "/data/Minko/experiments/spike-turbovla/libero/fusionAA_statefix_fulltrain_20260911/attempt2/sdtv3_smoothspike_fusionAA_statefix_seed42_gbs1024_8gpu_continue18750/evaluation_1875/spike_aa_statefix_1875_ema_trainbn128x16.pth",
+      "finished_at": "2026-09-11T19:58:44.168006+08:00",
+      "episodes": 2000,
+      "successes": 1474,
+      "success_rate": 0.737,
+      "suites": {
+        "libero_spatial": {
+          "successes": 420,
+          "episodes": 500,
+          "success_rate": 0.84
+        },
+        "libero_object": {
+          "successes": 435,
+          "episodes": 500,
+          "success_rate": 0.87
+        },
+        "libero_goal": {
+          "successes": 366,
+          "episodes": 500,
+          "success_rate": 0.732
+        },
+        "libero_10": {
+          "successes": 253,
+          "episodes": 500,
+          "success_rate": 0.506
+        }
+      },
+      "protocol": {
+        "precision": "fp32",
+        "checkpoint_weights": "ema",
+        "effective_sentence_mask": "legacy",
+        "effective_head_mask": "corrected",
+        "numerics": {
+          "checkpoint_recorded": "highest",
+          "cuda_matmul_allow_tf32": false,
+          "cudnn_allow_tf32": false,
+          "float32_matmul_precision": "highest",
+          "requested": "auto"
+        },
+        "num_trials_per_task": 50,
+        "num_open_loop_steps": 12,
+        "seed": 7,
+        "control_mode": "relative",
+        "env_img_res": 256
+      },
+      "task_results": [
+        {
+          "suite": "libero_10",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 0,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 37,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 26,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 28,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 16,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 34,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 25,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 20,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 22,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 43,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 43,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 3,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 14,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 40,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 42,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 40,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 31,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 33,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 40,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 42,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 43,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 0,
+          "episodes": 50,
+          "successes": 30,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 1,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 2,
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 3,
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 4,
+          "episodes": 50,
+          "successes": 32,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 5,
+          "episodes": 50,
+          "successes": 34,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 6,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 7,
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 8,
+          "episodes": 50,
+          "successes": 44,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": 9,
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        }
+      ],
+      "overall_exit_code": 0,
+      "label": "AA 状态修复 + 1,875 步续训",
+      "training": {
+        "base_model": "AA",
+        "base_optimizer_steps": 18750,
+        "selected_head_repair_steps": 512,
+        "continuation_optimizer_steps": 1875,
+        "gpus": 8,
+        "batch_per_gpu": 128,
+        "gradient_accumulation": 1,
+        "global_batch": 1024,
+        "continuation_sample_exposures": 1920000,
+        "seed": 42,
+        "stop_note": "The evaluated checkpoint is step 1875, not the unsaved step-2349 tail."
+      },
+      "architecture": {
+        "base": "AA",
+        "spike_state_population": 32,
+        "spike_state_population_range": 4,
+        "spike_state_attention_gain": 4
+      }
+    }
+  ]
+}

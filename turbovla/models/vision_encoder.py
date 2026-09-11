@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 import importlib.util
 from pathlib import Path
 
 import torch
 from torch import nn
+from torch.utils.checkpoint import checkpoint
 from transformers import AutoModel
 
 from .configuration import VisionEncoderConfig
@@ -149,9 +150,10 @@ def _extract_checkpoint_state(checkpoint):
 class SDTV3VisionEncoder(nn.Module):
     """Adapter for the official 19M Spike-driven Transformer V3 base model.
 
-    The official SFA training model emits a [B, 360, 14, 14] integer-spike
-    feature map for 224px inputs. We keep the spatial map and expose it as
-    TurboVLA tokens instead of applying the ImageNet pooling/classification head.
+    The official SFA backbone uses integer-rate spike activations internally.
+    forward_features returns a continuous residual map [B, 360, 14, 14], not
+    the classifier's spike output. Temporal fusion explicitly re-encodes this
+    continuous feature boundary into binary events.
     """
 
     hidden_size = 360
@@ -226,6 +228,66 @@ class SDTV3VisionEncoder(nn.Module):
             )
         return backbone
 
+
+    @staticmethod
+    def _checkpoint_contexts(module):
+        # Preserve the exact before/after BN state, including the case where
+        # the same backbone already encoded a second camera view. Recompute
+        # must see the original pre-forward buffers and must not update them
+        # a second time. No CPU reads and no changes to BN training mode.
+        buffers = [buffer for child in module.modules()
+                   if isinstance(child, nn.modules.batchnorm._BatchNorm)
+                   for buffer in (child.running_mean, child.running_var, child.num_batches_tracked)
+                   if buffer is not None]
+        before = []
+
+        @contextmanager
+        def original_forward():
+            before.extend(buffer.detach().clone() for buffer in buffers)
+            yield
+
+        @contextmanager
+        def recompute():
+            after = [buffer.detach().clone() for buffer in buffers]
+            with torch.no_grad():
+                for buffer, saved in zip(buffers, before):
+                    buffer.copy_(saved)
+            try:
+                yield
+            finally:
+                with torch.no_grad():
+                    for buffer, saved in zip(buffers, after):
+                        buffer.copy_(saved)
+
+        return original_forward(), recompute()
+
+    def _checkpoint_features(self, images):
+        # Exact stage order of the supported official 19M forward_features.
+        # Checkpoint each block, not the complete image encoder: this bounds
+        # backward's peak live activations when increasing the true batch.
+        stages = (
+            ("downsample1_1", "ConvBlock1_1"),
+            ("downsample1_2", "ConvBlock1_2"),
+            ("downsample2", "ConvBlock2_1", "ConvBlock2_2"),
+            ("downsample3", "block3"),
+            ("downsample4", "block4"),
+        )
+        if self.config.checkpoint_scope not in {"all", "early"}:
+            raise ValueError(f"Unsupported vision checkpoint scope: {self.config.checkpoint_scope}")
+        x = images
+        for index, stage in enumerate(stages):
+            for name in stage:
+                component = getattr(self.backbone, name)
+                blocks = component if isinstance(component, nn.ModuleList) else (component,)
+                for block in blocks:
+                    if self.config.checkpoint_scope == "all" or index < 3:
+                        x = checkpoint(
+                            block, x, use_reentrant=False,
+                            context_fn=lambda block=block: self._checkpoint_contexts(block))
+                    else:
+                        x = block(x)
+        return x
+
     def set_compute_precision(self, precision: str) -> None:
         if precision not in {"fp32", "bf16", "bf16_autocast"}:
             raise ValueError(f"unsupported SDT-V3 precision: {precision}")
@@ -244,7 +306,10 @@ class SDTV3VisionEncoder(nn.Module):
             autocast_context = torch.autocast(device_type="cuda", dtype=torch.bfloat16)
         grad_context = torch.no_grad() if self.config.frozen else nullcontext()
         with grad_context, autocast_context:
-            features = self.backbone.forward_features(pixel_values)
+            if self.training and torch.is_grad_enabled() and self.config.gradient_checkpointing:
+                features = self._checkpoint_features(pixel_values)
+            else:
+                features = self.backbone.forward_features(pixel_values)
         if features.ndim != 4 or tuple(features.shape[-2:]) != (14, 14):
             raise RuntimeError(f"SDT-V3 expected [B,360,14,14], got {tuple(features.shape)}")
         return features.flatten(2).transpose(1, 2).contiguous()

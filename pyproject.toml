@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "spike-turbovla"
 version = "0.1.0"
-description = "LIBERO experiments with SDT-V3, frozen SmoothSpike, and spike Cross-attention"
+description = "LIBERO experiments with spike-driven vision, language, fusion, and action heads"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {file = "LICENSE"}

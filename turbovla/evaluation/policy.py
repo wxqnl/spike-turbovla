@@ -539,6 +539,19 @@ class TurboVLAPolicy:
     def _load_checkpoint(self) -> None:
         source_state = _strip_module_prefix(_checkpoint_state_dict(self._checkpoint, self.checkpoint_weights))
         self.model.load_state_dict(source_state, strict=True)
+        fusion_type = self.model.config.interaction.backbone_type
+        if fusion_type in {"spike_temporal", "spike_wta", "spike_text_only"}:
+            if self.precision != "fp32" or torch.get_float32_matmul_precision() != "highest":
+                raise ValueError("Temporal spike fusion evaluation requires highest/fp32 to match training")
+            if fusion_type == "spike_temporal":
+                from turbovla.models.components.temporal_fusion import finish_calibration
+                finish_calibration(self.model)
+            else:
+                from turbovla.training.wta_norms import verify_wta_evaluation
+                if torch.backends.cudnn.allow_tf32:
+                    raise ValueError("WTA evaluation requires the recorded cudnn TF32-disabled policy")
+                # Eval observations must never update or initialize running statistics.
+                verify_wta_evaluation(self.model, self._checkpoint, self.checkpoint_weights)
         if self.verbose:
             print(
                 f"[TurboVLAPolicy] strict checkpoint load: {self.ckpt_path} "
