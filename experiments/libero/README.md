@@ -1,6 +1,6 @@
 # LIBERO 复现说明
 
-更新：2026-09-11。五版完整结果已汇总；原四个 hybrid 预设和 A / AA / B 的专用训练入口分开使用。A/AA/B 训练后需先刷新 EMA 的训练数据 BN，再评估。见[训练入口](../../docs/training_variants.md)、[完整结果](../../docs/results.md)和[数值精度](../../README.md#numerics)。
+更新：2026-09-11。五版完整结果已汇总；原四个 hybrid 预设和新版 Spike Cross、Spike Action Head 版与完整 WTA 融合版的专用训练入口分开使用。新版 Spike Cross、Spike Action Head 版与完整 WTA 融合版训练后需先刷新 EMA 的训练数据 BN，再评估。见[训练入口](../../docs/training_variants.md)、[完整结果](../../docs/results.md)和[数值精度](../../README.md#numerics)。
 
 ## 数据布局
 
@@ -15,7 +15,7 @@ libero_spatial_no_noops_1.0.0_lerobot/
 
 使用 `binary_open` 夹爪语义，`normalize_binary_gripper=false`。统计文件为 `configs/libero_all4_stats.json`，键为 `libero_all4_no_noops`。不要把其他夹爪编码的数据直接套进这套配方。
 
-`configs/online_text_layout.json` 仅记录40条训练指令的 padding 布局，没有 embedding 缓存。保留 legacy 句子/位置协议，学生和教师采用 corrected batch/head mask。历史 ANN 动作头会消费 padding 行，因此公共文本接口校正同时对齐有效行和 padding 行；AA 的脉冲动作头使用显式 memory padding mask。
+`configs/online_text_layout.json` 仅记录40条训练指令的 padding 布局，没有 embedding 缓存。保留 legacy 句子/位置协议，学生和教师采用 corrected batch/head mask。历史 ANN 动作头会消费 padding 行，因此公共文本接口校正同时对齐有效行和 padding 行；Spike Action Head 版的脉冲动作头使用显式 memory padding mask。
 
 ## 独立联合训练
 
@@ -51,9 +51,9 @@ python -m experiments.libero.evaluate --help
 python -m experiments.libero.prepare_cross_joint --help
 ```
 
-## A / AA / B 专用入口
+## 新版 Spike Cross 与脉冲动作头专用入口
 
-这些版本使用脉冲投影和文本块；AA 还使用脉冲动作头。请使用[专用训练配方](../../docs/training_variants.md)，不要将它们当成旧 `vision_text_cross` 预设。训练入口支持无 GPU 的 `--dry-run`；A/AA/B 的 EMA 必须用 `refresh_wta_norms.py` 在原训练数据上刷新后，才能按下面协议评估。
+这些版本使用脉冲投影和文本块；Spike Action Head 版还使用脉冲动作头。请使用[专用训练配方](../../docs/training_variants.md)，不要将它们当成旧 `vision_text_cross` 预设。训练入口支持无 GPU 的 `--dry-run`；新版 Spike Cross、Spike Action Head 版与完整 WTA 融合版的 EMA 必须用 `refresh_wta_norms.py` 在原训练数据上刷新后，才能按下面协议评估。
 
 ## 评估
 

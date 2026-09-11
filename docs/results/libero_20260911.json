@@ -1413,7 +1413,7 @@
         }
       ],
       "overall_exit_code": 0,
-      "label": "A：脉冲投影 + 脉冲文本交互",
+      "label": "新版 Spike Cross",
       "training": {
         "optimizer_steps": 50000,
         "gpus": 2,
@@ -1779,7 +1779,7 @@
         }
       ],
       "overall_exit_code": 0,
-      "label": "AA：A + 脉冲动作头（原版）",
+      "label": "新版 Spike Cross + Spike Action Head",
       "training": {
         "optimizer_steps": 18750,
         "gpus": 8,
@@ -1790,14 +1790,14 @@
         "lr_schedule_steps": 18750,
         "sample_exposures": 19200000,
         "seed": 42,
-        "initialization": "Fresh common components; not continued from trained A or B."
+        "initialization": "Fresh common components; not continued from trained new Spike Cross or full WTA fusion policies."
       },
       "architecture": {
         "vision": "SDT-V3 19M",
         "text": "frozen SmoothSpike T4",
-        "projection": "same as A",
-        "cross": "same as A",
-        "text_interaction": "same as A",
+        "projection": "same as new Spike Cross",
+        "cross": "same as new Spike Cross",
+        "text_interaction": "same as new Spike Cross",
         "action_head": "T4 spike state projection + SDSA decoder + signed spike readout; continuous final actions"
       }
     },
@@ -2133,7 +2133,7 @@
         }
       ],
       "overall_exit_code": 0,
-      "label": "B：完整 WTA 融合",
+      "label": "完整 WTA 融合",
       "training": {
         "optimizer_steps": 18750,
         "gpus": 8,
@@ -2487,7 +2487,7 @@
         }
       ],
       "overall_exit_code": 0,
-      "label": "AA 状态修复 + 1,875 步续训",
+      "label": "Spike Action Head 状态修复 + 1,875 步续训",
       "training": {
         "base_model": "AA",
         "base_optimizer_steps": 18750,

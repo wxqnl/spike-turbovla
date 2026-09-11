@@ -1,12 +1,12 @@
 # spike-turbovla
 
-基于 [TurboVLA](https://github.com/H-EmbodVis/TurboVLA) 的 LIBERO 逐模块脉冲化实验，覆盖视觉、冻结语言骨干、跨模态融合与动作头。代码保留 ANN / 混合路径，以及已完成评估的 A、AA、B 实现；连续动作输出不变。
+基于 [TurboVLA](https://github.com/H-EmbodVis/TurboVLA) 的 LIBERO 逐模块脉冲化实验，覆盖视觉、冻结语言骨干、跨模态融合与动作头。代码保留 ANN / 混合路径，以及已完成评估的新版 Spike Cross、Spike Action Head 版与完整 WTA 融合版实现；连续动作输出不变。
 
 ## 五版 LIBERO 完整结果
 
-更新：2026-09-11。延续原先的三版结果表，增加 A 和原 AA。每版四套 40 个任务，每任务 50 次，共 2,000 回合；所有任务和整体均正常退出。
+更新：2026-09-11。延续原先的三版结果表，增加新版 Spike Cross 及其 Spike Action Head 版本。每版四套 40 个任务，每任务 50 次，共 2,000 回合；所有任务和整体均正常退出。
 
-| 项目 | 仅 Vision spike | + SmoothSpike（校准版） | + Spike Cross（旧版） | A | 原 AA |
+| 项目 | 仅 Vision spike | + SmoothSpike（校准版） | + Spike Cross（旧版） | + Spike Cross（新版） | + Spike Action Head |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Spatial | 90.6% | 90.2% | 91.6% | 95.4% | 80.0% |
 | Object | 93.8% | 93.0% | 97.6% | 99.4% | 84.8% |
@@ -22,11 +22,11 @@
 
 - 旧 Cross 使用与训练一致的 **high** 完整成绩 90.90%；此前 60.20% 来自不匹配的 highest 评估，保留为诊断记录。
 - SmoothSpike 校准版继承 Vision 70k EMA，只有文本投影校准，没有新增策略训练。新运行 `--preset vision_text` 不会自动得到这个历史模型。
-- A 在前 5,000 步用每卡 96、累积 2，之后完整恢复训练并改为每卡 192、累积 1；全程 global batch 384。原 AA 为 8 × 128 × 18,750，和 A 一样有 19.20M 样本曝光，但 batch 与更新次数不同。
-- A 比旧 Cross 高 0.15 个百分点；这组结果不支持显著提升或严格单模块因果结论。各版训练历史、mask 和数值策略差异见完整记录。
-- B 完整 WTA 为 **85.15%**；AA 状态修复加 1,875 步续训为 **73.70%**。两者列在补充表，不替代主表中的旧 Cross 或原 AA。AA-v2 只有未通过门槛的离线筛选，没有新的完整成功率。
+- 新版 Spike Cross 在前 5,000 步用每卡 96、累积 2，之后完整恢复训练并改为每卡 192、累积 1；全程 global batch 384。Spike Action Head 基础版为 8 × 128 × 18,750，和新版 Spike Cross 一样有 19.20M 样本曝光，但 batch 与更新次数不同。
+- 新版 Spike Cross 比旧 Cross 高 0.15 个百分点；这组结果不支持显著提升或严格单模块因果结论。各版训练历史、mask 和数值策略差异见完整记录。
+- 完整 WTA 融合为 **85.15%**；Spike Action Head 状态修复加 1,875 步续训为 **73.70%**。两者列在补充表，不替代主表中的旧 Cross 或 Spike Action Head 基础版。Spike Action Head v2 只有未通过门槛的离线筛选，没有新的完整成功率。
 
-[完整结果、训练配置和协议](docs/results.md) · [逐任务结果数据](docs/results/libero_20260911.json) · [架构边界](docs/architecture.md) · [A / AA / B 启动说明](docs/training_variants.md)
+[完整结果、训练配置和协议](docs/results.md) · [逐任务结果数据](docs/results/libero_20260911.json) · [架构边界](docs/architecture.md) · [脉冲融合与动作头启动说明](docs/training_variants.md)
 
 ## 模型与训练入口
 
@@ -36,11 +36,11 @@
 | `--preset vision` | SDT-V3 19M | BERT-base | ANN | ANN |
 | `--preset vision_text` | SDT-V3 19M | SmoothSpike T4 | ANN | ANN |
 | `--preset vision_text_cross` | SDT-V3 19M | SmoothSpike T4 | 旧 Spike Cross；ANN 投影和文本块 | ANN |
-| A：`train_spike_text_only` | SDT-V3 19M | SmoothSpike T4 | 脉冲投影、旧 Spike Cross、脉冲文本块 | ANN |
-| AA：`train_spike_aa` | SDT-V3 19M | SmoothSpike T4 | 同 A | 脉冲状态投影 / ACT |
-| B：`train_wta` | SDT-V3 19M | SmoothSpike T4 | 完整 Signed WTA 融合 | ANN |
+| 新版 Spike Cross：`train_spike_text_only` | SDT-V3 19M | SmoothSpike T4 | 脉冲投影、旧 Spike Cross、脉冲文本块 | ANN |
+| 新版 Spike Cross + Spike Action Head：`train_spike_aa` | SDT-V3 19M | SmoothSpike T4 | 同新版 Spike Cross | 脉冲状态投影 / ACT |
+| 完整 WTA 融合版：`train_wta` | SDT-V3 19M | SmoothSpike T4 | 完整 Signed WTA 融合 | ANN |
 
-前四项通过 `python -m experiments.libero.run_experiment` 选择；后三项使用独立训练入口，支持 `--dry-run` 预览，需要显式批准训练。A/AA/B 完成训练后要先刷新 EMA 的训练数据 BN，再单独评估。[具体命令](docs/training_variants.md)
+前四项通过 `python -m experiments.libero.run_experiment` 选择；后三项使用独立训练入口，支持 `--dry-run` 预览，需要显式批准训练。新版 Spike Cross、Spike Action Head 版与完整 WTA 融合版完成训练后要先刷新 EMA 的训练数据 BN，再单独评估。[具体命令](docs/training_variants.md)
 
 ### 数值精度与 checkpoint
 
@@ -51,7 +51,7 @@
 - 新 checkpoint：`--precision fp32 --float32_matmul_precision auto`。
 - 旧 high 训练器产生的 Cross50k：显式 `--float32_matmul_precision high`，不改权重。
 - 后处理校准 SmoothSpike：`--checkpoint_weights raw --float32_matmul_precision highest`。
-- A / AA / B 的 EMA：先用训练数据 128 × 16 帧刷新 BN；未刷新文件不能直接评估。导出仅供推理，续训使用原训练 checkpoint。
+- 新版 Spike Cross、Spike Action Head 版与完整 WTA 融合版的 EMA：先用训练数据 128 × 16 帧刷新 BN；未刷新文件不能直接评估。导出仅供推理，续训使用原训练 checkpoint。
 
 缺少 numerics 的旧文件需要查原训练 / 校准配置，不会仅靠更新代码自动修正。旧 Cross 的匹配精度全量重评已经结束，不能继续引用 200 回合的 92.5% 作为完整成绩。[精度修复记录](docs/precision_fix_20260908.md)
 
@@ -193,7 +193,7 @@ libero_10_no_noops_1.0.0_lerobot/
 
 ## 5. 四个 hybrid 预设如何启动训练
 
-本节只覆盖四个 hybrid 预设；A / AA / B 使用[单独入口](docs/training_variants.md)。先完成安装、下载、数据准备并加载 `.env`。每条命令是一场独立实验；在同三张卡上选一条启动，不要同时执行。
+本节只覆盖四个 hybrid 预设；新版 Spike Cross、Spike Action Head 版与完整 WTA 融合版使用[单独入口](docs/training_variants.md)。先完成安装、下载、数据准备并加载 `.env`。每条命令是一场独立实验；在同三张卡上选一条启动，不要同时执行。
 
 ```bash
 # 只替换视觉：SDT-V3 + 冻结 ANN BERT + ANN Cross
@@ -276,8 +276,8 @@ python -m experiments.libero.run_experiment \
 turbovla/                 模型、数据加载、训练、推理
 experiments/libero/       可选组合、训练流水线、文本校正、评估及配置
 scripts/                  第三方模型源码准备
-docs/                     架构、五版结果、A/AA/B 训练与评估说明
+docs/                     架构、五版结果、训练与评估说明
 third_party/              运行依赖、集成补丁与许可证
 ```
 
-旧 hybrid Spike Cross 仍含 ANN 文本 Self-Attention / FFN 和动作头；A 已替换投影与文本块，AA 进一步替换状态投影及 ACT 动作头。连续归一化、膜电位、残差和最终动作读出仍存在。GPU 上使用稠密张量，不能据此声称实测节能或加速。上游 RoboTwin 代码保留供参考，尚未验证脉冲配方。根目录沿用 TurboVLA 代码许可证，模型权重与第三方代码需遵守各自条款。
+旧 hybrid Spike Cross 仍含 ANN 文本 Self-Attention / FFN 和动作头；新版 Spike Cross 已替换投影与文本块，Spike Action Head 版进一步替换状态投影及 ACT 动作头。连续归一化、膜电位、残差和最终动作读出仍存在。GPU 上使用稠密张量，不能据此声称实测节能或加速。上游 RoboTwin 代码保留供参考，尚未验证脉冲配方。根目录沿用 TurboVLA 代码许可证，模型权重与第三方代码需遵守各自条款。

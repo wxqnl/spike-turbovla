@@ -1,18 +1,18 @@
 # LIBERO 实验结果
 
-更新：2026-09-11。以下分数来自本项目的实际评估，不是 TurboVLA 论文分数。主表延续原来的三个版本，再增加 A 和原 AA；B、AA 状态修复及离线候选放在后面的补充记录中。
+更新：2026-09-11。以下分数来自本项目的实际评估，不是 TurboVLA 论文分数。主表延续原来的三个版本，再增加新版 Spike Cross 及其 Spike Action Head 版本；完整 WTA 融合版、Spike Action Head 状态修复及离线候选放在后面的补充记录中。
 
 ## 五版完整结果
 
 每版四套共 40 个任务，每任务 50 个初始状态，共 2,000 回合。所有表内完整评估的 40 个任务和整体退出码均为 0，任务、分套与整体计数一致。本次整理没有重新训练或重跑 rollout。
 
-| 项目 | 仅 Vision spike | + SmoothSpike（校准版） | + Spike Cross（旧版） | A | 原 AA |
+| 项目 | 仅 Vision spike | + SmoothSpike（校准版） | + Spike Cross（旧版） | + Spike Cross（新版） | + Spike Action Head |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | 视觉编码器 | SDT-V3 19M | SDT-V3 19M | SDT-V3 19M | SDT-V3 19M | SDT-V3 19M |
 | 冻结文本骨干 | ANN BERT | SmoothSpike T4 | SmoothSpike T4 | SmoothSpike T4 | SmoothSpike T4 |
-| 视觉 / 文本投影 | ANN | ANN（文本校准） | ANN | Signed PLIF | 同 A |
-| Cross | ANN | ANN | 旧二值 SDSA | 旧二值 SDSA | 同 A |
-| 文本 Self-Attention / FFN | ANN | ANN | ANN | WTA / Spike FFN | 同 A |
+| 视觉 / 文本投影 | ANN | ANN（文本校准） | ANN | Signed PLIF | 同新版 Spike Cross |
+| Cross | ANN | ANN | 旧二值 SDSA | 旧二值 SDSA | 同新版 Spike Cross |
+| 文本 Self-Attention / FFN | ANN | ANN | ANN | WTA / Spike FFN | 同新版 Spike Cross |
 | 状态 / 动作头 | ANN | ANN | ANN | ANN | Spike SDSA T4 |
 | Spatial | 90.6% | 90.2% | 91.6% | 95.4% | 80.0% |
 | Object | 93.8% | 93.0% | 97.6% | 99.4% | 84.8% |
@@ -34,11 +34,11 @@
 
 - **SmoothSpike 校准版**继承 Vision 70k 的 EMA 策略，仅拟合文本投影；文件中 `global_step=0`、`source_global_step=70000`。它不是另一次独立 70k 联合训练，评估文件使用 raw。
 - **旧 Cross**从公共组件独立联合训练，原目标 70k，表中是停止后保存的 50k EMA。主表使用与训练匹配的 `high` 完整评估：1,818/2,000，90.90%。此前错误 `highest` 设置的 60.20% 留作诊断，不再作为这个模型的主成绩。
-- **A**从公共组件初始化。前 5,000 步为 2 卡 × 每卡 96 × 累积 2；从保存的第 5,000 步恢复模型、优化器和 EMA，后续改为 2 卡 × 每卡 192 × 累积 1，始终保持 global batch 384。microbatch 和重计算设置发生过变化，不能写成全程每卡 192，也不承诺两种 microbatch 的 BN 数值等价。
-- **原 AA**保留 A 的投影和融合结构，改用脉冲状态投影及动作解码器。它从公共初始化重新训练，不是拿已经训练好的 A 继续改头。8 × 128 × 18,750 = 19.20M 样本曝光，与 A 相同，但 batch 和优化器更新次数不同。
+- **新版 Spike Cross**从公共组件初始化。前 5,000 步为 2 卡 × 每卡 96 × 累积 2；从保存的第 5,000 步恢复模型、优化器和 EMA，后续改为 2 卡 × 每卡 192 × 累积 1，始终保持 global batch 384。microbatch 和重计算设置发生过变化，不能写成全程每卡 192，也不承诺两种 microbatch 的 BN 数值等价。
+- **Spike Action Head 基础版**保留新版 Spike Cross 的投影和融合结构，改用脉冲状态投影及动作解码器。它从公共初始化重新训练，不是拿已经训练好的新版 Spike Cross 继续改头。8 × 128 × 18,750 = 19.20M 样本曝光，与新版 Spike Cross 相同，但 batch 和优化器更新次数不同。
 - 表中的学习率日程是记录的 `lr_schedule_steps`，不等于实际完成步数。各正式联合训练使用专家动作 L1 + 0.1 视觉特征 MSE 蒸馏 + 0.1 动作 MSE 蒸馏；文本骨干冻结。视觉学习率 1e-5，其余可训练部分 5e-5，训练 seed 42。
 
-A 比旧 Cross 高 0.15 个百分点（3 次成功），原 AA 比 A 低 21.85 个百分点。这里仅描述这组固定回合的结果。初始化、训练历史、batch、更新次数、mask 和数值策略并不完全相同；这不是严格单变量消融，也没有多训练 seed 或统计显著性结论。
+新版 Spike Cross 比旧 Cross 高 0.15 个百分点（3 次成功），Spike Action Head 基础版比新版 Spike Cross 低 21.85 个百分点。这里仅描述这组固定回合的结果。初始化、训练历史、batch、更新次数、mask 和数值策略并不完全相同；这不是严格单变量消融，也没有多训练 seed 或统计显著性结论。
 
 ## 评估协议与数值差异
 
@@ -49,26 +49,26 @@ A 比旧 Cross 高 0.15 个百分点（3 次成功），原 AA 比 A 低 21.85 �
 | Vision 70k | legacy | legacy | 旧 task JSON 未记录 numerics，不补写 TF32 标志 | 原 EMA |
 | SmoothSpike 校准版 | legacy | corrected | 沿用校准时的 highest；旧 task JSON 未记录完整 numerics | 从 Vision EMA 派生的 raw |
 | 旧 Cross 50k | legacy | corrected | high；CUDA matmul、cuDNN TF32 均为 true | 原 EMA |
-| A / 原 AA / B / 修复 AA | legacy | corrected | highest；两类 TF32 均为 false | 训练数据 128 × 16 帧刷新 BN 后的 EMA |
+| 新版 Spike Cross、Spike Action Head 基础版及状态修复版、完整 WTA 融合 | legacy | corrected | highest；两类 TF32 均为 false | 训练数据 128 × 16 帧刷新 BN 后的 EMA |
 
-A、AA、B 的 EMA 统计刷新只读取记录的 LIBERO **训练数据**，执行 0 个优化步骤；不读取评估轨迹。刷新文件只供推理，不作为续训 checkpoint。`refresh_wta_norms.py` 保留历史名称，但支持这三种模型。旧 Cross 不走这项刷新流程。
+新版 Spike Cross、Spike Action Head 版与完整 WTA 融合版的 EMA 统计刷新只读取记录的 LIBERO **训练数据**，执行 0 个优化步骤；不读取评估轨迹。刷新文件只供推理，不作为续训 checkpoint。`refresh_wta_norms.py` 保留历史名称，但支持这三种模型。旧 Cross 不走这项刷新流程。
 
-## 补充：B 与 AA 状态修复
+## 补充：完整 WTA 融合版与 Spike Action Head 状态修复
 
 | 版本 | Spatial | Object | Goal | Long | Overall | 成功 / 总回合 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| B：完整 WTA 融合 | 96.0% | 91.4% | 90.4% | 62.8% | 85.15% | 1703/2000 |
-| AA 状态修复 + 1,875 步续训 | 84.0% | 87.0% | 73.2% | 50.6% | 73.70% | 1474/2000 |
+| 完整 WTA 融合 | 96.0% | 91.4% | 90.4% | 62.8% | 85.15% | 1703/2000 |
+| Spike Action Head 状态修复 + 1,875 步续训 | 84.0% | 87.0% | 73.2% | 50.6% | 73.70% | 1474/2000 |
 
-- B 使用完整 WTA 融合、8 卡 × 128、18,750 步、warmup 1,251，样本曝光 19.20M；不是主表里的旧 Spike Cross。
-- 修复 AA 以原 AA 为基座，先选取 512 步头部修复权重，再进行全策略续训。表中评估的是保存的 **1,875 步** checkpoint，新增全策略曝光 1.92M；不是停止时未保存的第 2,349 步，也不是完成了计划中的 18,750 步续训。
-- 修复采用状态群体编码 32、范围 4、状态注意力增益 4；默认原 AA 仍为 0、4、1。修复版的 73.70% 比原 AA 高 4.50 个百分点，但增加了训练和选择预算，不能把差值全部归因于编码修复。
+- 完整 WTA 融合版使用 8 卡 × 128、18,750 步、warmup 1,251，样本曝光 19.20M；不是主表里的旧 Spike Cross。
+- Spike Action Head 状态修复版以 Spike Action Head 基础版为基座，先选取 512 步头部修复权重，再进行全策略续训。表中评估的是保存的 **1,875 步** checkpoint，新增全策略曝光 1.92M；不是停止时未保存的第 2,349 步，也不是完成了计划中的 18,750 步续训。
+- 修复采用状态群体编码 32、范围 4、状态注意力增益 4；默认 Spike Action Head 基础版仍为 0、4、1。修复版的 73.70% 比 Spike Action Head 基础版高 4.50 个百分点，但增加了训练和选择预算，不能把差值全部归因于编码修复。
 
-## AA-v2：只有离线筛选，没有新全量成绩
+## Spike Action Head v2：只有离线筛选，没有新全量成绩
 
 9 月 11 日的旧头对照与四个新候选各完成 4,096 步 head-only 适配。四个新候选均未通过既定离线门槛，没有启动配对闭环或正式八卡训练。
 
-最佳新候选“共享投影 + 完整三层脉冲读出”的导出 EMA 动作 L1 为 0.099340，旧头对照为 0.091872；新候选仍高约 8.13%。这不是 LIBERO 成功率，不混入主表，也没有据此替换原 AA 的默认实现。完整候选源码、权重和日志保留在实验目录。
+最佳新候选“共享投影 + 完整三层脉冲读出”的导出 EMA 动作 L1 为 0.099340，旧头对照为 0.091872；新候选仍高约 8.13%。这不是 LIBERO 成功率，不混入主表，也没有据此替换 Spike Action Head 基础版的默认实现。完整候选源码、权重和日志保留在实验目录。
 
 ## 历史诊断
 
@@ -84,7 +84,7 @@ A、AA、B 的 EMA 统计刷新只读取记录的 LIBERO **训练数据**，执�
 
 ## 数据来源
 
-[机器可读汇总](results/libero_20260911.json) 保存七个完整结果的模型定义、训练预算、实际评估协议、每任务计数、原始 summary 路径和完成时间。路径相对于各实验服务器的 `/data/Minko`，node42 保存前三版与 A，node43 保存原 AA、B 与修复 AA。
+[机器可读汇总](results/libero_20260911.json) 保存七个完整结果的模型定义、训练预算、实际评估协议、每任务计数、原始 summary 路径和完成时间。路径相对于各实验服务器的 `/data/Minko`，node42 保存前三版与新版 Spike Cross，node43 保存 Spike Action Head 基础版、完整 WTA 融合版与 Spike Action Head 状态修复版。
 
 原始权重、数据、视频及完整日志不随 GitHub 代码提交，也没有因本次整理被删除。原始 summary 中的历史验证标记保持原样；这里的计数核对不等于额外复跑或独立复现。
 
@@ -93,7 +93,7 @@ A、AA、B 的 EMA 统计刷新只读取记录的 LIBERO **训练数据**，执�
 | Vision 70k | 2026-09-08 00:19 |
 | SmoothSpike 校准版 | 2026-09-07 19:46 |
 | 旧 Cross，high 完整重评 | 2026-09-08 21:56 |
-| A | 2026-09-11 21:35 |
-| 原 AA | 2026-09-11 14:01 |
-| B | 2026-09-10 12:03 |
-| AA 状态修复 + 1,875 步 | 2026-09-11 19:58 |
+| 新版 Spike Cross | 2026-09-11 21:35 |
+| Spike Action Head 基础版 | 2026-09-11 14:01 |
+| 完整 WTA 融合版 | 2026-09-10 12:03 |
+| Spike Action Head 状态修复 + 1,875 步 | 2026-09-11 19:58 |

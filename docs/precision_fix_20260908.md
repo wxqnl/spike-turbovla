@@ -12,7 +12,7 @@
 
 - 旧 Cross 联合训练 EMA：显式使用 `--precision fp32 --float32_matmul_precision high`。
 - 旧后处理校准 SmoothSpike：沿用校准时的 highest，使用 `--checkpoint_weights raw`。
-- A / AA / B：使用已刷新 BN 的 EMA，`--precision fp32 --float32_matmul_precision auto`。
+- 新版 Spike Cross、Spike Action Head 版与完整 WTA 融合版：使用已刷新 BN 的 EMA，`--precision fp32 --float32_matmul_precision auto`。
 
 SmoothSpike 首次前向会缓存冻结 H1 的旋转变换。比较不同精度时使用独立进程或重新创建 encoder；策略构建后更改全局精度会触发推理检查，不能复用不匹配的缓存。这次精度干预没有更改旧策略权重、SNN 阈值、mask 或 Cross 结构。
 
