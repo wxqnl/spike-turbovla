@@ -1,0 +1,772 @@
+{
+  "updated_at": "2026-09-14",
+  "scope": "Fixed A upstream and Action Head modifications",
+  "evaluation_protocol": {
+    "suites": [
+      "libero_spatial",
+      "libero_object",
+      "libero_goal",
+      "libero_10"
+    ],
+    "tasks_per_suite": 10,
+    "trials_per_task": 50,
+    "initial_state_indices": [
+      0,
+      49
+    ],
+    "seed": 7,
+    "checkpoint_weights": "ema",
+    "normalization_refresh": {
+      "training_only": true,
+      "batches": 128,
+      "batch_size": 16,
+      "optimizer_updates": 0
+    },
+    "precision": "fp32",
+    "float32_matmul_precision": "highest",
+    "cuda_matmul_allow_tf32": false,
+    "cudnn_allow_tf32": false,
+    "sentence_mask": "legacy",
+    "head_mask": "corrected",
+    "control_mode": "relative",
+    "chunk_size": 12,
+    "num_open_loop_steps": 12,
+    "num_steps_wait": 10,
+    "env_img_res": 256,
+    "normalize_binary_gripper": false,
+    "save_video": false
+  },
+  "results": [
+    {
+      "label": "新 A 80k（ANN 动作头基线）",
+      "node": "node42",
+      "training": {
+        "head_type": "ann",
+        "world_size": 4,
+        "batch_per_gpu": 32,
+        "gradient_accumulation": 1,
+        "global_batch": 128,
+        "steps": 80000,
+        "warmup_steps": 10000,
+        "sample_exposures": 10240000,
+        "fresh_public_initialization": true
+      },
+      "summary": {
+        "material_passport": {
+          "origin_skill": "academic-research-suite",
+          "origin_mode": "run",
+          "origin_date": "2026-09-13",
+          "verification_status": "UNVERIFIED",
+          "version_label": "A_base_final_80000_trainbn_2000_v1"
+        },
+        "training_checkpoint": "/data/Minko/experiments/spike-turbovla/libero/fusionA_turbovla_base_20260912/training/checkpoints/spike_a_turbovla_base_80000.pth",
+        "checkpoint": "/data/Minko/experiments/spike-turbovla/libero/fusionA_turbovla_base_20260912/evaluation/spike_a_turbovla_base_80000_ema_trainbn128x16.pth",
+        "checkpoint_weights": "ema",
+        "seed": 7,
+        "trials_per_task": 50,
+        "total_episodes": 2000,
+        "total_successes": 1847,
+        "suites": {
+          "libero_spatial": {
+            "successes": 475,
+            "episodes": 500,
+            "success_rate": 0.95
+          },
+          "libero_object": {
+            "successes": 477,
+            "episodes": 500,
+            "success_rate": 0.954
+          },
+          "libero_goal": {
+            "successes": 483,
+            "episodes": 500,
+            "success_rate": 0.966
+          },
+          "libero_10": {
+            "successes": 412,
+            "episodes": 500,
+            "success_rate": 0.824
+          }
+        },
+        "training_sample_exposures": 10240000,
+        "training_steps": 80000,
+        "training_global_batch": 128,
+        "comparison_note": "A and the head variants use the same reference sample budget but different heads, global batches and update histories; not a strict single-variable ablation.",
+        "numerics": {
+          "float32_matmul_precision": "highest",
+          "cuda_matmul_allow_tf32": false,
+          "cudnn_allow_tf32": false,
+          "requested": "auto",
+          "checkpoint_recorded": "highest"
+        },
+        "overall_success_rate": 0.9235,
+        "finished_at": "2026-09-13T21:39:27.539696+08:00"
+      },
+      "tasks": [
+        {
+          "suite": "libero_10",
+          "task_id": "task00",
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task01",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task02",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task03",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task04",
+          "episodes": 50,
+          "successes": 43,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task05",
+          "episodes": 50,
+          "successes": 41,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task06",
+          "episodes": 50,
+          "successes": 31,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task07",
+          "episodes": 50,
+          "successes": 30,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task08",
+          "episodes": 50,
+          "successes": 42,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task09",
+          "episodes": 50,
+          "successes": 30,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task00",
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task01",
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task02",
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task03",
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task04",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task05",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task06",
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task07",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task08",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task09",
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task00",
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task01",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task02",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task03",
+          "episodes": 50,
+          "successes": 35,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task04",
+          "episodes": 50,
+          "successes": 44,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task05",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task06",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task07",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task08",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task09",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task00",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task01",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task02",
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task03",
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task04",
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task05",
+          "episodes": 50,
+          "successes": 37,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task06",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task07",
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task08",
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task09",
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        }
+      ],
+      "overall_exit_code": 0,
+      "source": "/data/Minko/experiments/spike-turbovla/libero/fusionA_turbovla_base_20260912/evaluation/summary.json"
+    },
+    {
+      "label": "Action Head 修改类：Spike FFN 对照",
+      "node": "node43",
+      "training": {
+        "head_type": "hybrid_spike_ffn",
+        "final_step": 10875,
+        "sample_exposures": 10240000,
+        "segments": [
+          {
+            "first_step": 1,
+            "last_step": 1000,
+            "global_batch": 128
+          },
+          {
+            "first_step": 1001,
+            "last_step": 10875,
+            "global_batch": 1024
+          }
+        ],
+        "sample_count_note": "1000 * 128 + (10875 - 1000) * 1024"
+      },
+      "summary": {
+        "material_passport": {
+          "origin_skill": "academic-research-suite",
+          "origin_mode": "run",
+          "origin_date": "2026-09-12",
+          "verification_status": "UNVERIFIED",
+          "version_label": "hybrid_spike_ffn_final_ema_2000"
+        },
+        "arm": "ffn",
+        "training_checkpoint": "/data/Minko/experiments/spike-turbovla/libero/fusionA_heads_4plus4_20260912/ffn/training/checkpoints/spike_a_ffn_full_10875.pth",
+        "checkpoint": "/data/Minko/experiments/spike-turbovla/libero/fusionA_heads_4plus4_20260912/ffn/training/model_ema.pth",
+        "checkpoint_weights": "ema",
+        "seed": 7,
+        "trials_per_task": 50,
+        "total_episodes": 2000,
+        "total_successes": 1528,
+        "suites": {
+          "libero_spatial": {
+            "successes": 397,
+            "episodes": 500,
+            "success_rate": 0.794
+          },
+          "libero_object": {
+            "successes": 457,
+            "episodes": 500,
+            "success_rate": 0.914
+          },
+          "libero_goal": {
+            "successes": 411,
+            "episodes": 500,
+            "success_rate": 0.822
+          },
+          "libero_10": {
+            "successes": 263,
+            "episodes": 500,
+            "success_rate": 0.526
+          }
+        },
+        "training_steps": 10875,
+        "training_global_batch": 1024,
+        "training_sample_exposures": 10240000,
+        "comparison_note": "Different heads, batches and update histories; not a strict single-variable ablation.",
+        "numerics": {
+          "float32_matmul_precision": "highest",
+          "cuda_matmul_allow_tf32": false,
+          "cudnn_allow_tf32": false,
+          "requested": "auto",
+          "checkpoint_recorded": "highest"
+        },
+        "overall_success_rate": 0.764,
+        "finished_at": "2026-09-13T15:24:08.138307+08:00"
+      },
+      "tasks": [
+        {
+          "suite": "libero_10",
+          "task_id": "task00",
+          "episodes": 50,
+          "successes": 22,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task01",
+          "episodes": 50,
+          "successes": 43,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task02",
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task03",
+          "episodes": 50,
+          "successes": 46,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task04",
+          "episodes": 50,
+          "successes": 20,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task05",
+          "episodes": 50,
+          "successes": 2,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task06",
+          "episodes": 50,
+          "successes": 14,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task07",
+          "episodes": 50,
+          "successes": 33,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task08",
+          "episodes": 50,
+          "successes": 18,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_10",
+          "task_id": "task09",
+          "episodes": 50,
+          "successes": 18,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task00",
+          "episodes": 50,
+          "successes": 42,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task01",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task02",
+          "episodes": 50,
+          "successes": 44,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task03",
+          "episodes": 50,
+          "successes": 32,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task04",
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task05",
+          "episodes": 50,
+          "successes": 8,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task06",
+          "episodes": 50,
+          "successes": 41,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task07",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task08",
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_goal",
+          "task_id": "task09",
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task00",
+          "episodes": 50,
+          "successes": 45,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task01",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task02",
+          "episodes": 50,
+          "successes": 39,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task03",
+          "episodes": 50,
+          "successes": 33,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task04",
+          "episodes": 50,
+          "successes": 48,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task05",
+          "episodes": 50,
+          "successes": 44,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task06",
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task07",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task08",
+          "episodes": 50,
+          "successes": 49,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_object",
+          "task_id": "task09",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task00",
+          "episodes": 50,
+          "successes": 27,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task01",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task02",
+          "episodes": 50,
+          "successes": 50,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task03",
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task04",
+          "episodes": 50,
+          "successes": 47,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task05",
+          "episodes": 50,
+          "successes": 31,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task06",
+          "episodes": 50,
+          "successes": 37,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task07",
+          "episodes": 50,
+          "successes": 33,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task08",
+          "episodes": 50,
+          "successes": 33,
+          "exit_code": 0
+        },
+        {
+          "suite": "libero_spatial",
+          "task_id": "task09",
+          "episodes": 50,
+          "successes": 42,
+          "exit_code": 0
+        }
+      ],
+      "overall_exit_code": 0,
+      "source": "/data/Minko/experiments/spike-turbovla/libero/fusionA_heads_4plus4_20260912/ffn/evaluation/summary.json"
+    }
+  ],
+  "unfinished_variants": [
+    {
+      "variant": "perdim",
+      "category": "Action Head 修改类",
+      "final_evaluation_available": false
+    },
+    {
+      "variant": "multithreshold",
+      "category": "Action Head 修改类",
+      "final_evaluation_available": false
+    },
+    {
+      "variant": "shiftmax_perdim",
+      "category": "Action Head 修改类",
+      "final_evaluation_available": false
+    }
+  ],
+  "notes": [
+    "Original summaries are retained without rewriting their historical material_passport verification_status.",
+    "Task and suite counts were checked against the completed results; this publication did not rerun training or rollout.",
+    "Upstream architecture is fixed, but parameters other than the frozen text backbone are jointly trained.",
+    "Different batch/rank layouts, update histories, and head/V changes prevent a strict single-variable causal interpretation."
+  ]
+}

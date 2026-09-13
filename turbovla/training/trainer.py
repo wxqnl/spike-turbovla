@@ -107,6 +107,10 @@ def parse_args():
         help="Cosine LR horizon. Defaults to max_steps; set separately for multi-fidelity searches.",
     )
     parser.add_argument("--warmup_steps", type=int, default=10000)
+    parser.add_argument("--lr_warmup_samples", type=int, default=0)
+    parser.add_argument("--lr_sample_offset", type=int, default=0)
+    parser.add_argument("--lr_step_offset", type=int, default=0)
+    parser.add_argument("--lr_reference_batch", type=int, default=128)
     parser.add_argument("--min_lr_ratio", type=float, default=1.0)
     parser.add_argument("--save_steps", type=int, default=1000)
     parser.add_argument("--extra_save_steps", type=int, nargs="*", default=[])
@@ -154,7 +158,13 @@ def parse_args():
                         help="Explicit approval after reviewing the v2 architecture; off by default")
     parser.add_argument("--cross_timesteps", type=int, default=4)
     parser.add_argument("--cross_gradient_checkpointing", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--action_head_type", choices=["ann", "spike_sdsa"], default="ann")
+    parser.add_argument("--action_head_type", choices=[
+        "ann", "spike_sdsa", "hybrid_spike_ffn", "deep_spike_wta",
+        "full_spike_state8_wta", "full_spike_state8_shiftmax",
+    ], default="ann")
+    parser.add_argument("--spike_state_encoding", choices=["perdim_plif", "multithreshold"], default="perdim_plif")
+    parser.add_argument("--continuous_state", action="store_true",
+                        help="Use A continuous state MLP with a spike-body action head")
     parser.add_argument("--action_dim", type=int, default=7)
     parser.add_argument("--chunk_size", type=int, default=12)
     parser.add_argument("--state_dim", type=int, default=8)
@@ -297,6 +307,8 @@ def build_model_architecture(args):
     model_args.fusion_dropout = args.fusion_dropout
     model_args.fusion_droppath = args.fusion_droppath
     model_args.action_head_type = args.action_head_type
+    model_args.continuous_state = bool(getattr(args, "continuous_state", False))
+    model_args.spike_state_encoding = getattr(args, "spike_state_encoding", "perdim_plif")
     model_args.spike_state_population = getattr(args, "spike_state_population", 0)
     model_args.spike_state_population_range = getattr(args, "spike_state_population_range", 4.0)
     model_args.spike_state_attention_gain = getattr(args, "spike_state_attention_gain", 1.0)
@@ -360,6 +372,9 @@ def build_distillation_teacher(args):
         teacher_args.cross_attention_type = "ann"
         teacher_args.fusion_backbone_type = "hybrid"
         teacher_args.action_head_type = "ann"
+        teacher_args.continuous_state = False
+        # The public teacher keeps its original two state tokens.
+        teacher_args.num_state_tokens = 2
         teacher_args.text_only_spike_projections = False
         teacher_args.freeze_vision_encoder = True
         teacher = build_model_architecture(teacher_args)
@@ -424,7 +439,20 @@ def masked_text_alignment_loss(pred, target, valid):
     return squared_error / teacher_energy.clamp_min(1e-6)
 
 
-def build_scheduler(optimizer, max_steps, warmup_steps, min_lr_ratio=0.1):
+def build_scheduler(optimizer, max_steps, warmup_steps, min_lr_ratio=0.1, *,
+                    global_batch=0, warmup_samples=0, sample_offset=0,
+                    step_offset=0, reference_batch=128):
+    if warmup_samples > 0:
+        if min_lr_ratio != 1 or min(global_batch, reference_batch) < 1 or min(sample_offset, step_offset) < 0:
+            raise ValueError("Sample-based warmup requires a valid constant-after-warmup recipe")
+
+        def sample_lr_lambda(step):
+            # Preserve A's 128-example step+1 lookahead.
+            samples = sample_offset + max(0, step - step_offset) * global_batch + reference_batch
+            return 0.1 + 0.9 * min(samples / warmup_samples, 1.0)
+
+        return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=sample_lr_lambda)
+
     def lr_lambda(step):
         if step < warmup_steps:
             warmup_scale = float(step + 1) / float(max(1, warmup_steps))
@@ -840,6 +868,11 @@ def train_model():
             max_steps=args.lr_schedule_steps,
             warmup_steps=args.warmup_steps,
             min_lr_ratio=args.min_lr_ratio,
+            global_batch=args.batch_size * args.grad_accum_steps * world_size,
+            warmup_samples=args.lr_warmup_samples,
+            sample_offset=args.lr_sample_offset,
+            step_offset=args.lr_step_offset,
+            reference_batch=args.lr_reference_batch,
         )
 
         if ckpt is not None and args.resume_mode == "all":

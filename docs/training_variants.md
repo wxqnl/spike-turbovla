@@ -1,5 +1,7 @@
 # 脉冲融合与动作头：训练及评估入口
 
+新 A 80k 与逐维 WTA、多阈值 WTA、Shiftmax＋逐维已统一整理在 [Action Head 修改类](action_head_variants.md)，使用 `train_action_head --variant ...` 和独立配方文件。本页保留历史 50k A、Spike Action Head 基础版及完整 WTA 融合入口，不将它们的预算改成新实验预算。
+
 完成[根目录安装和资产准备](../README.md)，在仓库根目录加载 `.env` 后使用本页。三个入口都只负责训练，训练结束后需要单独导出 EMA、评估；不会自动排队或启动后台监控。原来的四个 `run_experiment --preset` 仍使用 hybrid 路径，不会隐式变成新版 Spike Cross 或 Spike Action Head 版。
 
 ## 入口对应关系

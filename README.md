@@ -1,10 +1,37 @@
 # spike-turbovla
 
-基于 [TurboVLA](https://github.com/H-EmbodVis/TurboVLA) 的 LIBERO 逐模块脉冲化实验，覆盖视觉、冻结语言骨干、跨模态融合与动作头。代码保留 ANN / 混合路径，以及已完成评估的新版 Spike Cross、Spike Action Head 版与完整 WTA 融合版实现；连续动作输出不变。
+基于 [TurboVLA](https://github.com/H-EmbodVis/TurboVLA) 的 LIBERO 逐模块脉冲化实验。当前固定 action head 之前的 SDT-V3、SmoothSpike、脉冲投影和 spike_text_only 融合路径，将后续状态编码与解码器实验统一归入 **Action Head 修改类**。固定的是结构和公共初始化方案；训练仍联合更新视觉、投影、融合与动作头，只有文本骨干冻结。
 
-## 五版 LIBERO 完整结果
+## 当前基线：新 A，80,000 步
 
-更新：2026-09-11。延续原先的三版结果表，增加新版 Spike Cross 及其 Spike Action Head 版本。每版四套 40 个任务，每任务 50 次，共 2,000 回合；所有任务和整体均正常退出。
+更新：2026-09-14。新 A 保留 ANN 动作头，从公共组件重新训练，已于 2026-09-13 完成四套 LIBERO 的 2,000 回合评测。
+
+| Spatial | Object | Goal | Long（libero_10） | Overall | 成功 / 总回合 |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 95.00%（475/500） | 95.40%（477/500） | 96.60%（483/500） | 82.40%（412/500） | **92.35%** | **1847/2000** |
+
+训练为 **4 卡 × 每卡 32 × 累积 1，global batch 128，80,000 步**，共 10,240,000 次样本曝光；warmup 10,000 步。评测使用训练数据 128 × 16 刷新 BN 后的 EMA，FP32 / highest、TF32 关闭，40 个任务和整体均正常退出。它与下方 50k、91.05% 的旧 A 是两次独立训练，不覆盖旧记录，也不是官方 TurboVLA 原模型成绩。
+
+## Action Head 修改类
+
+以下版本共用新 A 的上游结构和公共组件初始化，不加载已训练的新 A 策略。状态编码属于 action head 内部；三种新配方均为 T=4、8 个逐坐标 state token、3 层 ACT 解码器、7 维连续动作和 chunk12。
+
+| 版本 | 状态编码 / 注意力 | 训练配置 | 完整评测 |
+| --- | --- | --- | --- |
+| Spike FFN 对照 | A 的 ANN 状态与注意力，仅替换 FFN | 分段 batch，合计 10.24M 样本 | **76.40%（1528/2000）** |
+| 逐维 WTA | 每个坐标独立 signed PLIF；self/cross 为 WTA | 2 卡 × 192，26,667 步 | 训练中，未公布完整成绩 |
+| 多阈值 WTA | 每维每步 32 阈值，T4 共 128 个边界；WTA | 2 卡 × 192，26,667 步 | 训练中，未公布完整成绩 |
+| Shiftmax＋逐维 | 逐维 signed PLIF；signed Q/K、Shiftmax、连续 V 电流 | 4 卡 × 96，26,667 步 | 训练中，未公布完整成绩 |
+
+三种新配方的 global batch 均为 384、累积 1，最终各 10,240,128 次样本曝光；warmup 按 1,280,000 个样本计算，学习率不随卡数放大。四卡与双卡会改变数据分片和每卡 BN，Shiftmax 还同时改变 V 路径，因此不作为严格单算子消融。训练 loss 不填写为任务成功率。
+
+统一入口：`python -m experiments.libero.train_action_head --variant {a_base,perdim,multithreshold,shiftmax_perdim}`。支持不占 GPU 的 `--dry-run`，正式训练要求 `--approve_training`；训练、EMA 刷新和评测命令分别列出。当前服务器上的三组已有控制器和评测队列，不要重复启动。
+
+[Action Head 配置与运行命令](docs/action_head_variants.md) · [机器可读配方](experiments/libero/configs/action_head_variants.json) · [新 A / FFN 逐任务结果](docs/results/libero_20260913.json)
+
+## 历史五版 LIBERO 完整结果
+
+以下保留 2026-09-11 发布的历史结果。“+ Spike Cross（新版）”是旧 A 的 50k 运行，当前基线为上面的新 A 80k。每版四套 40 个任务，每任务 50 次，共 2,000 回合；所有任务和整体均正常退出。
 
 | 项目 | 仅 Vision spike | + SmoothSpike（校准版） | + Spike Cross（旧版） | + Spike Cross（新版） | + Spike Action Head |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -39,8 +66,9 @@
 | 新版 Spike Cross：`train_spike_text_only` | SDT-V3 19M | SmoothSpike T4 | 脉冲投影、旧 Spike Cross、脉冲文本块 | ANN |
 | 新版 Spike Cross + Spike Action Head：`train_spike_aa` | SDT-V3 19M | SmoothSpike T4 | 同新版 Spike Cross | 脉冲状态投影 / ACT |
 | 完整 WTA 融合版：`train_wta` | SDT-V3 19M | SmoothSpike T4 | 完整 Signed WTA 融合 | ANN |
+| Action Head 修改类：`train_action_head` | SDT-V3 19M | SmoothSpike T4 | 固定新 A 上游 | ANN 基线 / 逐维 WTA / 多阈值 WTA / Shiftmax＋逐维 |
 
-前四项通过 `python -m experiments.libero.run_experiment` 选择；后三项使用独立训练入口，支持 `--dry-run` 预览，需要显式批准训练。新版 Spike Cross、Spike Action Head 版与完整 WTA 融合版完成训练后要先刷新 EMA 的训练数据 BN，再单独评估。[具体命令](docs/training_variants.md)
+前四项通过 `python -m experiments.libero.run_experiment` 选择；脉冲融合与动作头使用独立入口，支持 `--dry-run` 预览，需要显式批准训练。各脉冲融合版本完成训练后先用训练数据刷新 EMA 的 BN，再评估。[历史入口](docs/training_variants.md) · [当前 Action Head 入口](docs/action_head_variants.md)
 
 ### 数值精度与 checkpoint
 
@@ -276,7 +304,7 @@ python -m experiments.libero.run_experiment \
 turbovla/                 模型、数据加载、训练、推理
 experiments/libero/       可选组合、训练流水线、文本校正、评估及配置
 scripts/                  第三方模型源码准备
-docs/                     架构、五版结果、训练与评估说明
+docs/                     当前基线、Action Head 分类、历史结果与运行说明
 third_party/              运行依赖、集成补丁与许可证
 ```
 

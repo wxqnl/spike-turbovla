@@ -15,6 +15,7 @@ import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
+from .action_head import StateProjection
 from .components.spike_fusion import FunctionalPLIF, _ATanSpike
 from .components.wta_operators import BipolarPLIF, MaskedTemporalBatchNorm, checkpoint_contexts
 
@@ -259,20 +260,28 @@ class SpikeTurboVLAActionHead(nn.Module):
         super().__init__()
         self.config = config
         self.state_dim = config.state_dim
-        self.state_projection = SpikeStateProjection(config, hidden_dim, interaction)
+        self.state_projection = (
+            StateProjection(config, hidden_dim) if config.continuous_state
+            else SpikeStateProjection(config, hidden_dim, interaction)
+        )
         self.decoder = SpikeACTDecoder(config, hidden_dim, nheads, dim_feedforward, interaction)
 
     @torch.no_grad()
     def load_common(self, original):
-        self.state_projection.load_common(original.state_projection)
+        if self.config.continuous_state:
+            self.state_projection.load_state_dict(original.state_projection.state_dict(), strict=True)
+        else:
+            self.state_projection.load_common(original.state_projection)
         self.decoder.load_common(original.decoder)
 
     def _forward(self, memory, state, memory_key_padding_mask):
         state_state, memories = {}, []
+        continuous_tokens = self.state_projection(state) if self.config.continuous_state else None
         # A already reads out its fusion timesteps. Integrate that unchanged
         # condition as a constant current through the COMPLETE new action head.
         for t in range(self.config.spike_timesteps):
-            state_tokens = self.state_projection.forward_step(state, state_state, t)
+            state_tokens = (continuous_tokens if continuous_tokens is not None
+                            else self.state_projection.forward_step(state, state_state, t))
             memories.append(torch.cat((memory, state_tokens), dim=1))
         state_valid = torch.ones(
             (state.shape[0], self.config.num_state_tokens), device=memory.device, dtype=torch.bool

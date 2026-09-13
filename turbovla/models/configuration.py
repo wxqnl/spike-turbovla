@@ -77,6 +77,8 @@ class InteractionConfig:
 @dataclass
 class ActionHeadConfig:
     head_type: str = "ann"
+    continuous_state: bool = False
+    spike_state_encoding: str = "perdim_plif"
     spike_timesteps: int = 4
     spike_gradient_checkpointing: bool = True
     spike_state_population: int = 0
@@ -184,8 +186,13 @@ class TurboVLAConfig:
             raise ValueError("interaction.compute_precision must be fp32 or bf16_autocast")
         if self.action.action_dim < 1 or self.action.state_dim < 1 or self.action.horizon < 1:
             raise ValueError("action dimensions and horizon must be positive")
-        if self.action.head_type not in {"ann", "spike_sdsa"}:
-            raise ValueError("action.head_type must be ann or spike_sdsa")
+        if self.action.head_type not in {
+            "ann", "spike_sdsa", "hybrid_spike_ffn", "deep_spike_wta",
+            "full_spike_state8_wta", "full_spike_state8_shiftmax",
+        }:
+            raise ValueError("Unknown action head type")
+        if self.action.continuous_state and self.action.head_type not in {"spike_sdsa", "deep_spike_wta"}:
+            raise ValueError("continuous_state applies to the spike-body action heads")
         if self.action.head_type == "spike_sdsa":
             if self.action.spike_state_population < 0:
                 raise ValueError("spike_state_population must be nonnegative")
@@ -197,6 +204,27 @@ class TurboVLAConfig:
                 raise ValueError("AA action and temporal BN must use the same T")
             if self.action.dropout != 0 or self.vision.compute_precision != "fp32":
                 raise ValueError("AA requires zero action dropout and FP32 vision")
+        if self.action.head_type == "hybrid_spike_ffn":
+            if self.interaction.backbone_type != "spike_text_only":
+                raise ValueError("Hybrid FFN preserves A's spike_text_only fusion")
+            if self.action.spike_timesteps < 1 or self.vision.compute_precision != "fp32":
+                raise ValueError("Hybrid FFN requires positive neuron time and FP32 vision")
+        if self.action.head_type == "deep_spike_wta":
+            if self.interaction.backbone_type != "spike_text_only" or not self.action.continuous_state:
+                raise ValueError("Deep WTA preserves A's upstream fusion and continuous state")
+            if self.action.spike_timesteps < 1 or self.vision.compute_precision != "fp32":
+                raise ValueError("Deep WTA requires positive neuron time and FP32 vision")
+        if self.action.head_type in {"full_spike_state8_wta", "full_spike_state8_shiftmax"}:
+            if self.interaction.backbone_type != "spike_text_only" or self.action.continuous_state:
+                raise ValueError("Coordinate action heads preserve A fusion and require event-driven state")
+            if self.action.num_state_tokens != self.action.state_dim:
+                raise ValueError("Coordinate action heads require one token per state coordinate")
+            if self.action.spike_state_encoding not in {"perdim_plif", "multithreshold"}:
+                raise ValueError("Unknown coordinate event encoding")
+            if self.action.spike_state_population < 1 or self.action.spike_state_population_range <= 0:
+                raise ValueError("Population bin count and range must be positive")
+            if self.action.spike_timesteps < 1 or self.vision.compute_precision != "fp32":
+                raise ValueError("Coordinate action heads require positive neuron time and FP32 vision")
 
     @property
     def sentence_mask_version(self) -> str:

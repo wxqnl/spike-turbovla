@@ -195,6 +195,30 @@ class TurboVLA(nn.Module):
                 head.load_common(self.action_head)
                 self.action_head = head
 
+        elif config.action.head_type == "hybrid_spike_ffn":
+            from .hybrid_action_head import HybridSpikeFFNActionHead
+            with torch.random.fork_rng(devices=[]):
+                head = HybridSpikeFFNActionHead(
+                    config.action, hidden_dim, config.interaction.nheads,
+                    config.interaction.dim_feedforward,
+                )
+                head.load_common(self.action_head)
+                self.action_head = head
+        elif config.action.head_type in {"deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax"}:
+            if config.action.head_type == "full_spike_state8_shiftmax":
+                from .shiftmax_action_head import FullStateShiftmaxActionHead as Head
+            elif config.action.head_type == "full_spike_state8_wta":
+                from .full_state_action_head import FullStateSpikeActionHead as Head
+            else:
+                from .deep_spike_action_head import DeepSpikeActionHead as Head
+            with torch.random.fork_rng(devices=[]):
+                head = Head(
+                    config.action, hidden_dim, config.interaction.nheads,
+                    config.interaction.dim_feedforward, config.interaction,
+                )
+                head.load_common(self.action_head)
+                self.action_head = head
+
     def _normalize_samples(self, samples: torch.Tensor | Mapping[str, torch.Tensor]) -> torch.Tensor:
         if isinstance(samples, Mapping):
             key = "pixel_values" if "pixel_values" in samples else "dinov3"
@@ -369,7 +393,9 @@ class TurboVLA(nn.Module):
         return_visual_tokens: bool = False,
         return_distillation_features: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, Any]:
-        spike_action_head = self.config.action.head_type == "spike_sdsa"
+        spike_action_head = self.config.action.head_type in {
+            "spike_sdsa", "deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax",
+        }
         need_features = return_distillation_features or spike_action_head
         encoded = self.encode_condition(
             instructions, samples, return_visual_tokens=return_visual_tokens,
@@ -504,6 +530,8 @@ def build_turbovla(args: TurboVLAConfig | Mapping[str, Any] | Any) -> TurboVLA:
             ),
             action=ActionHeadConfig(
                 head_type=str(_arg(args, "action_head_type", "ann")),
+                continuous_state=bool(_arg(args, "continuous_state", False)),
+                spike_state_encoding=str(_arg(args, "spike_state_encoding", "perdim_plif")),
                 spike_timesteps=int(_arg(args, "cross_timesteps", 4)),
                 spike_gradient_checkpointing=bool(_arg(args, "action_head_gradient_checkpointing", True)),
                 spike_state_population=int(_arg(args, "spike_state_population", 0)),

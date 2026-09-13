@@ -44,7 +44,8 @@ def wta_arguments(options):
     ]
 
 
-def main(argument_builder=wta_arguments, description=__doc__, required_world_size=None):
+def main(argument_builder=wta_arguments, description=__doc__, required_world_size=None,
+         configure_parser=None):
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--run_dir", required=True)
     parser.add_argument("--vision_checkpoint", required=True)
@@ -67,6 +68,8 @@ def main(argument_builder=wta_arguments, description=__doc__, required_world_siz
     parser.add_argument("--vision_gradient_checkpointing", action="store_true")
     parser.add_argument("--vision_checkpoint_scope", choices=["all", "early"], default="all")
     parser.add_argument("--projection_gradient_checkpointing", action="store_true")
+    if configure_parser is not None:
+        configure_parser(parser)
     options = parser.parse_args()
     actual_world_size = int(os.environ.get("WORLD_SIZE", "1"))
     if options.world_size is not None and not options.dry_run:
@@ -76,10 +79,11 @@ def main(argument_builder=wta_arguments, description=__doc__, required_world_siz
         raise ValueError("World size must be positive")
     if required_world_size is not None and world_size != required_world_size:
         raise ValueError(f"This recipe requires {required_world_size} processes, got {world_size}")
+    options.effective_world_size = world_size
     if not options.dry_run and not options.approve_training:
         raise RuntimeError("Review the architecture/configuration and explicitly pass --approve_training")
     if (min(options.max_steps, options.batch_size, options.grad_accum_steps,
-            options.log_freq, options.save_steps) < 1 or options.max_steps > 70000
+            options.log_freq, options.save_steps) < 1 or options.max_steps > 80000
             or options.num_workers < 0):
         raise ValueError("Invalid WTA training budget or batch configuration")
     if options.warmup_steps < 0 or options.lr_schedule_steps <= options.warmup_steps:
