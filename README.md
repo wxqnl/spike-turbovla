@@ -2,19 +2,17 @@
 
 基于 [TurboVLA](https://github.com/H-EmbodVis/TurboVLA) 的 LIBERO 逐模块脉冲化实验。当前固定 action head 之前的 SDT-V3、SmoothSpike、脉冲投影和 spike_text_only 融合路径，将后续状态编码与解码器实验统一归入 **Action Head 修改类**。固定的是结构和公共初始化方案；训练仍联合更新视觉、投影、融合与动作头，只有文本骨干冻结。
 
-## 当前基线：新 A，80,000 步
+## 当前基线：vision+text+cross 仅 ANN action head，80,000 步
 
-更新：2026-09-14。新 A 保留 ANN 动作头，从公共组件重新训练，已于 2026-09-13 完成四套 LIBERO 的 2,000 回合评测。
 
 | Spatial | Object | Goal | Long（libero_10） | Overall | 成功 / 总回合 |
 | ---: | ---: | ---: | ---: | ---: | ---: |
 | 95.00%（475/500） | 95.40%（477/500） | 96.60%（483/500） | 82.40%（412/500） | **92.35%** | **1847/2000** |
 
-训练为 **4 卡 × 每卡 32 × 累积 1，global batch 128，80,000 步**，共 10,240,000 次样本曝光；warmup 10,000 步。评测使用训练数据 128 × 16 刷新 BN 后的 EMA，FP32 / highest、TF32 关闭，40 个任务和整体均正常退出。它与下方 50k、91.05% 的旧 A 是两次独立训练，不覆盖旧记录，也不是官方 TurboVLA 原模型成绩。
-
+训练为 **4 卡 × 每卡 32 × 累积 1，global batch 128，80,000 步**，共 10,240,000 次样本曝光；warmup 10,000 步。评测使用训练数据 128 × 16 刷新 BN 后的 EMA，FP32 / highest、TF32 关闭，40 个任务和整体均正常退出。
 ## Action Head 修改类
 
-以下版本共用新 A 的上游结构和公共组件初始化，不加载已训练的新 A 策略。状态编码属于 action head 内部；三种新配方均为 T=4、8 个逐坐标 state token、3 层 ACT 解码器、7 维连续动作和 chunk12。
+以下版本共用vision+text+cross 仅 ANN action head的上游结构和公共组件初始化。状态编码属于 action head 内部；三种新配方均为 T=4、8 个逐坐标 state token、3 层 ACT 解码器、7 维连续动作和 chunk12。
 
 | 版本 | 状态编码 / 注意力 | 训练配置 | 完整评测 |
 | --- | --- | --- | --- |
