@@ -2,7 +2,7 @@
 
 基于 [TurboVLA](https://github.com/H-EmbodVis/TurboVLA) 的 LIBERO 逐模块脉冲化实验。当前固定 action head 之前的 SDT-V3、SmoothSpike、脉冲投影和 spike_text_only 融合路径，将后续状态编码与解码器实验统一归入 **Action Head 修改类**。固定的是结构和公共初始化方案；训练仍联合更新视觉、投影、融合与动作头，只有文本骨干冻结。
 
-## 当前基线：vision+text+cross 仅 ANN action head，80,000 步
+## 当前beast：vision+text+cross 仅 ANN action head，80,000 步
 
 
 | Spatial | Object | Goal | Long（libero_10） | Overall | 成功 / 总回合 |
