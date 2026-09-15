@@ -2,30 +2,133 @@
 
 基于 [TurboVLA](https://github.com/H-EmbodVis/TurboVLA) 的 LIBERO 逐模块脉冲化实验。当前固定 action head 之前的 SDT-V3、SmoothSpike、脉冲投影和 spike_text_only 融合路径，将后续状态编码与解码器实验统一归入 **Action Head 修改类**。固定的是结构和公共初始化方案；训练仍联合更新视觉、投影、融合与动作头，只有文本骨干冻结。
 
-## 当前beast：vision+text+cross 仅 ANN action head，80,000 步
+## 当前最佳完整结果：Vision＋Text＋Cross 脉冲化，ANN 动作头（新 A，80k）
 
+截至 2026-09-15，本仓库已完成四套 LIBERO、2,000 回合评测的最高结果为 **92.35%**。该版本在实验记录中称为“新 A”：视觉、文本与跨模态融合使用脉冲实现，完整动作头保留 ANN。
 
 | Spatial | Object | Goal | Long（libero_10） | Overall | 成功 / 总回合 |
 | ---: | ---: | ---: | ---: | ---: | ---: |
 | 95.00%（475/500） | 95.40%（477/500） | 96.60%（483/500） | 82.40%（412/500） | **92.35%** | **1847/2000** |
 
 训练为 **4 卡 × 每卡 32 × 累积 1，global batch 128，80,000 步**，共 10,240,000 次样本曝光；warmup 10,000 步。评测使用训练数据 128 × 16 刷新 BN 后的 EMA，FP32 / highest、TF32 关闭，40 个任务和整体均正常退出。
+
+<a id="best-a-code"></a>
+
+### 最佳版本的代码在哪里
+
+**复现入口是 `experiments.libero.train_action_head --variant a_base`。** 下面的链接均指向本仓库代码，clone 后可直接找到。
+
+| 要找的内容 | 仓库内文件 |
+| --- | --- |
+| 新 A 的训练入口 | [experiments/libero/train_action_head.py](experiments/libero/train_action_head.py) |
+| 80k、4×32、seed42 等固定配方 | [experiments/libero/configs/action_head_variants.json](experiments/libero/configs/action_head_variants.json) 中的 `a_base` |
+| 新 A 的融合参数 | [experiments/libero/train_spike_text_only.py](experiments/libero/train_spike_text_only.py) 中的 `text_only_arguments` |
+| 完整模型的模块组装与前向 | [turbovla/models/turbovla.py](turbovla/models/turbovla.py) |
+| ANN 状态编码、ACT 解码器和动作读出 | [turbovla/models/action_head.py](turbovla/models/action_head.py) |
+| 脉冲文本块与原 SDSA Cross | [spike_text_only.py](turbovla/models/components/spike_text_only.py)、[spike_fusion.py](turbovla/models/components/spike_fusion.py) |
+| 训练循环 | [train_mixed.py](turbovla/training/train_mixed.py)、[trainer.py](turbovla/training/trainer.py) |
+
+最终配置是 `fusion_backbone_type=spike_text_only`、`cross_attention_type=spike_sdsa`、`text_only_spike_projections=true`、`action_head_type=ann`。文本 / Cross 为 T=4；8 维机器人状态由 ANN MLP 编成 **2 个 state token**，动作头的 self-attention、cross-attention、FFN 和读出均为 ANN。
+
+入口复用 [train_wta.py](experiments/libero/train_wta.py) 的公共参数与启动函数，再覆盖融合配置。**直接运行 `train_wta` 会选择完整 WTA 融合版（85.15%），不是这里的 92.35%。** `run_experiment --preset vision_text_cross` 则是旧 hybrid 预设；`shiftmax_perdim` 是近期①动作头实验（83.65%）。复现新 A 时固定选择 `a_base`。
+
+<a id="best-a-start"></a>
+
+### 如何启动最佳版本
+
+先完成下文的安装、公共权重与四套训练数据准备，并按 [LIBERO 最佳版本复现步骤](experiments/libero/README.md#best-a-reproduce) 配好 `.env`、`SPIKE_CODE_ROOT`、`PYTHONPATH`、`SPIKE_RUN_ROOT` 和公共初始化文件 `$SPIKE_TEXT_INIT_DIR/text_projection.pth`。使用自己已安装项目依赖的 Python 环境。
+
+以下命令新建一场 **4 卡 × 32、80,000 步**训练，不加载已训练 A 策略。运行目录必须尚未存在；GPU 编号仅为示例，执行前必须选定四张空闲卡，不能占用当前任务。
+
+```bash
+export SPIKE_A_RUN="$SPIKE_RUN_ROOT/a_base_80k_new"
+
+# 先预览最终参数：不创建运行目录、不加载模型、不使用 GPU
+python -m experiments.libero.train_action_head \
+  --variant a_base --world-size 4 --dry-run \
+  --run_dir "$SPIKE_A_RUN" \
+  --vision_checkpoint "${SPIKE_VISION_CHECKPOINT:-$SPIKE_WORK_ROOT/pretrained/SDT-V3/V3_19.0M_1x4.pth}" \
+  --text_projection_init "$SPIKE_TEXT_INIT_DIR/text_projection.pth" \
+  --max_steps 80000 --batch_size 32 --grad_accum_steps 1
+
+# 正式训练：将 0,1,2,3 改为确认空闲的四张卡
+CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.run \
+  --standalone --nproc_per_node=4 --module experiments.libero.train_action_head \
+  --variant a_base --run_dir "$SPIKE_A_RUN" \
+  --vision_checkpoint "${SPIKE_VISION_CHECKPOINT:-$SPIKE_WORK_ROOT/pretrained/SDT-V3/V3_19.0M_1x4.pth}" \
+  --text_projection_init "$SPIKE_TEXT_INIT_DIR/text_projection.pth" \
+  --max_steps 80000 --batch_size 32 --grad_accum_steps 1 \
+  --resume_mode none --approve_training
+```
+
+入口只负责训练，不自动启动 EMA 刷新或 eval。最终训练 checkpoint 为 `$SPIKE_A_RUN/checkpoints/spike_a_turbovla_base_80000.pth`。随后必须用训练数据 **128×16 刷新 EMA BN**，再按 seed7、FP32/highest、TF32 off 完成四套各 500 回合评测；完整命令见 [EMA 导出与四套评测](experiments/libero/README.md#best-a-eval)。92.35% 来自已完成的单 seed 历史运行，不保证重新训练得到相同小数。
+
+GitHub 发布的是代码和结果记录，**没有上传已训练策略或训练数据**。读者按上述入口与公共资产独立训练；历史 50k A 的 91.05% 是另一次实验。
+
 ## Action Head 修改类
 
-以下版本共用vision+text+cross 仅 ANN action head的上游结构和公共组件初始化。状态编码属于 action head 内部；三种新配方均为 T=4、8 个逐坐标 state token、3 层 ACT 解码器、7 维连续动作和 chunk12。
+更新：2026-09-15 13:57（北京时间）。以下实验共用上述 Vision＋Text＋Cross 脉冲化、ANN 动作头基线（新 A）的上游结构和公共组件初始化，各自独立训练，不加载已训练的新 A 或前一个版本的策略。上游结构不变不等于冻结；除文本骨干外，视觉、投影、融合和动作头仍联合更新。
 
-| 版本 | 状态编码 / 注意力 | 训练配置 | 完整评测 |
+### 最近尝试与版本区别
+
+| 版本 | 状态编码 / 相对改动 | 训练预算 | 当前状态 |
 | --- | --- | --- | --- |
-| Spike FFN 对照 | A 的 ANN 状态与注意力，仅替换 FFN | 分段 batch，合计 10.24M 样本 | **76.40%（1528/2000）** |
-| 逐维 WTA | 每个坐标独立 signed PLIF；self/cross 为 WTA | 2 卡 × 192，26,667 步 | 训练中，未公布完整成绩 |
-| 多阈值 WTA | 每维每步 32 阈值，T4 共 128 个边界；WTA | 2 卡 × 192，26,667 步 | 训练中，未公布完整成绩 |
-| Shiftmax＋逐维 | 逐维 signed PLIF；signed Q/K、Shiftmax、连续 V 电流 | 4 卡 × 96，26,667 步 | 训练中，未公布完整成绩 |
+| 旧 FFN-only | 保留 A 的 ANN 状态编码、注意力和读出，仅将动作解码器 FFN 改为脉冲 FFN | 前 1,000 步 global batch 128，后 9,875 步 global batch 1,024；合计 10.24M 样本 | 完整评测 76.40% |
+| 逐维 WTA | 每个坐标独立 signed PLIF；动作 self/cross attention 使用 WTA | 2 卡 × 192 × 26,667 步 | 训练、EMA 完成；评测由用户取消 |
+| 多阈值 WTA | 每维每步 32 阈值，T=4 共 128 个边界；动作 self/cross attention 使用 WTA | 2 卡 × 192 × 26,667 步 | 训练、EMA 完成；评测由用户取消 |
+| ① 原始 Shiftmax＋逐维 | 相对逐维 WTA，将注意力路由改为 Shiftmax，并将 V 改为连续电流；保留投影前 LIF 和脉冲 FFN | 4 卡 × 96 × 26,667 步 | 完整评测 83.65% |
+| ② 连续输入版（保留脉冲 FFN） | 相对①，跳过三层 self/cross attention 中 query、memory 的投影前 LIF；其余结构不变 | 4 卡 × 96 × 26,667 步 | 完整评测 77.45% |
+| ③ 连续输入＋普通 FFN 版 | 相对②，将三个动作解码器的 FFN 恢复为 A 的连续 FFN；其余结构不变 | 4 卡 × 96，计划 26,667 步 | 训练中：19,133 / 26,667 步；未评测 |
 
-三种新配方的 global batch 均为 384、累积 1，最终各 10,240,128 次样本曝光；warmup 按 1,280,000 个样本计算，学习率不随卡数放大。四卡与双卡会改变数据分片和每卡 BN，Shiftmax 还同时改变 V 路径，因此不作为严格单算子消融。训练 loss 不填写为任务成功率。
+两种 WTA 和①②③均使用 8 个逐坐标 state token、T=4、3 层 ACT 解码器、chunk12 和 7 维连续动作。global batch 均为 384、梯度累积 1，完整训练预算为 10,240,128 次样本曝光；warmup 按 1,280,000 个样本计算，学习率不随卡数放大。③截至上述时间已见 7,347,072 次样本（71.75%），不是已完成训练的结果。
 
-统一入口：`python -m experiments.libero.train_action_head --variant {a_base,perdim,multithreshold,shiftmax_perdim}`。支持不占 GPU 的 `--dry-run`，正式训练要求 `--approve_training`；训练、EMA 刷新和评测命令分别列出。当前服务器上的三组已有控制器和评测队列，不要重复启动。
+“连续输入”指跳过投影前 LIF，不是删除投影。①②③的 Q/K/V 线性层始终保留；Q/K 在投影后仍经过三元 signed PLIF，V 保持连续。②同时改变 query 和 memory 的入口，不是只改 learned action queries。
 
-[Action Head 配置与运行命令](docs/action_head_variants.md) · [机器可读配方](experiments/libero/configs/action_head_variants.json) · [新 A / FFN 逐任务结果](docs/results/libero_20260913.json)
+③也没有删除 FFN，而是使用连续分支：`LayerNorm → Linear(256→2048) → ReLU → Dropout(0.1) → Linear(2048→256) → Dropout(0.1) → 残差`。它移除了动作 FFN 的输入 / 隐藏 PLIF、额外隐藏 LayerNorm 和 FFN 膜状态；每个 T 时刻独立计算，不提前做时间平均。仅三个动作解码器 FFN 恢复为 ANN，上游 FFN 不变，逐维脉冲状态编码、attention context PLIF 和脉冲动作读出也仍保留。因此③不是完整 ANN 动作头，也不是全网去 spike。
+
+### 完整 LIBERO 结果
+
+每个单元格为成功率（成功数 / 回合数）。Long 指 `libero_10`；仅纳入四套各 500、总计 2,000 回合且 40 个任务及整体均正常退出的评测。
+
+| 版本 | Spatial | Object | Goal | Long（libero_10） | Overall |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 新 A（80k，ANN 动作头） | 95.00%（475/500） | 95.40%（477/500） | 96.60%（483/500） | 82.40%（412/500） | 92.35%（1847/2000） |
+| 旧 FFN-only | 79.40%（397/500） | 91.40%（457/500） | 82.20%（411/500） | 52.60%（263/500） | 76.40%（1528/2000） |
+| ① 原始 Shiftmax＋逐维 | 91.20%（456/500） | 97.20%（486/500） | 84.80%（424/500） | 61.40%（307/500） | 83.65%（1673/2000） |
+| ② 连续输入版（保留脉冲 FFN） | 86.60%（433/500） | 89.80%（449/500） | 80.60%（403/500） | 52.80%（264/500） | 77.45%（1549/2000） |
+
+②于 2026-09-15 13:52 完整结束，日志、逐任务结果和最终汇总一致。与①相比少成功 124 回合，总分低 6.20 个百分点，四套成绩均下降；与新 A 相比低 14.90 个百分点。当前这次实验没有支持“绕过投影前 LIF 能改善成绩”的假设。③尚无独立 rollout 结果，不能用②的成绩或训练 loss 代替。
+
+评测统一为 4 套 × 10 个任务 × 50 个初态（0–49），seed 7；使用仅以训练数据 128 × 16 刷新 BN 的 EMA，刷新过程无 optimizer 更新。数值为 FP32 / highest、关闭 CUDA 和 cuDNN TF32；legacy sentence mask、corrected head mask、relative 控制、chunk / open-loop 12、wait 10、env image 256、二值夹爪不归一化，不录视频。
+
+这些是单 seed 结果，不宣称统计显著性或普遍因果结论。A 与旧 FFN-only 的 batch 和优化步数不同；WTA 与①的卡数、每卡 batch、数据分片和 BN 不同，①还同时改变了注意力权重算法和 V 路径。③恢复的是完整连续 FFN 分支，包含激活、dropout 和归一化变化，也不是只换一个神经元的消融。
+
+### 取消、失败启动与尚未评测
+
+- 逐维 WTA：训练和 EMA 已完成；2026-09-14 11:07 用户取消评测时，已运行 413 回合、成功 253 回合，6 个任务完整结束。
+- 多阈值 WTA：训练和 EMA 已完成；同次取消时，已运行 558 回合、成功 335 回合，9 个任务完整结束。
+- 两组 WTA 的任务组成和进度不同，上述是取消时快照，不是完整 benchmark 成绩，不纳入完整结果排名；权重、EMA 和部分结果均保留。
+- ②首次启动因缺少 LIBERO 路径配置而在 0 回合时失败。失败日志已归档；用户确认补齐配置并重启后，第二次运行完成了上表的 2,000 回合。首次失败不计入分母。
+- ③当前只安排训练及训练数据 EMA 导出，尚未开展评测。旧 Deep 实验此前已由用户主动停止，未恢复。
+
+### 结果来源与实现入口
+
+以下目录均相对于服务器的 `/data/Minko/experiments/spike-turbovla/libero/`：
+
+| 实验 | 服务器 | 记录目录 |
+| --- | --- | --- |
+| 新 A（80k） | 42 | `fusionA_turbovla_base_20260912/` |
+| 旧 FFN-only | 43 | `fusionA_heads_4plus4_20260912/ffn/` |
+| 逐维 / 多阈值 WTA | 43（含回收的 42 评测日志） | `fusionA_fullspike_state8_pair_20260912/{perdim,multithreshold}/` |
+| ① 原始 Shiftmax | 43 | `fusionA_shiftmax_state8_20260913/perdim/` |
+| ② 连续输入版 | 43 | `fusionA_shiftmax_continuous_inputs_state8_20260914/perdim/` |
+| ③ 连续输入＋普通 FFN 版 | 43 | `fusionA_shiftmax_continuous_inputs_ann_ffn_state8_20260914/perdim/` |
+
+完整成绩来自各记录目录的 `evaluation/summary.json`，并与逐任务结果及退出码核对；评测配置见同目录的 `protocol.json`。WTA 的 `evaluation/` 保留取消记录。③的进度来自其 `training/train.log` 和 checkpoint。①②③分别使用各自实验根目录的 `source_snapshot/`；①②评测各自的 `training/model_ema.pth`，③将在训练完成后导出本组 EMA。②没有借用①的权重或结果。
+
+发布仓库现有统一入口仍为 `python -m experiments.libero.train_action_head --variant {a_base,perdim,multithreshold,shiftmax_perdim}`，支持 `--dry-run`，正式训练要求 `--approve_training`。②③目前使用独立实验源码快照，尚未迁入这个统一入口；本次只补实验记录，不扩展启动命令。上述结果不需要重复启动训练或评测。
+
+[现有 Action Head 配置与运行命令](docs/action_head_variants.md) · [已注册的机器可读配方](experiments/libero/configs/action_head_variants.json) · [新 A / 旧 FFN-only 逐任务结果（2026-09-13）](docs/results/libero_20260913.json)
 
 ## 历史五版 LIBERO 完整结果
 
