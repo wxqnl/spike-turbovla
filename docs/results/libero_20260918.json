@@ -1,0 +1,412 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-09-18",
+  "verification": "Transcribed from existing finalized summaries; arithmetic checked, no training/evaluation rerun or repeated episode audit.",
+  "protocol": {
+    "training_seed": 42,
+    "evaluation_seed": 7,
+    "trials_per_task": 50,
+    "initial_states": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49
+    ],
+    "precision": "fp32",
+    "float32_matmul_precision": "highest",
+    "cuda_tf32": false,
+    "cudnn_tf32": false,
+    "sentence_mask": "legacy",
+    "head_mask": "corrected",
+    "control_mode": "relative",
+    "chunk_size": 12,
+    "num_open_loop_steps": 12,
+    "num_steps_wait": 10,
+    "env_img_res": 256,
+    "normalize_binary_gripper": false,
+    "renderer": "osmesa",
+    "save_video": false,
+    "ema_refresh": {
+      "source": "training_data",
+      "batches": 128,
+      "batch_size": 16,
+      "optimizer_steps": 0
+    }
+  },
+  "completed": [
+    {
+      "id": "a_base",
+      "label": "新 A（80k，ANN动作头）",
+      "status": "completed",
+      "scope": "four_suites_2000",
+      "source_summary": "fusionA_turbovla_base_20260912/evaluation/summary.json",
+      "suites": {
+        "libero_spatial": {
+          "successes": 475,
+          "episodes": 500,
+          "success_rate": 0.95
+        },
+        "libero_object": {
+          "successes": 477,
+          "episodes": 500,
+          "success_rate": 0.954
+        },
+        "libero_goal": {
+          "successes": 483,
+          "episodes": 500,
+          "success_rate": 0.966
+        },
+        "libero_10": {
+          "successes": 412,
+          "episodes": 500,
+          "success_rate": 0.824
+        }
+      },
+      "total_successes": 1847,
+      "total_episodes": 2000,
+      "training": {
+        "global_batch": 128,
+        "max_steps": 80000,
+        "sample_exposures": 10240000
+      },
+      "finished_at": "2026-09-13T21:39:27.539696+08:00",
+      "overall_success_rate": 0.9235,
+      "long_success_rate": 0.824
+    },
+    {
+      "id": "a_no_wta",
+      "label": "A−WTA（文本SDSA式点积）",
+      "status": "completed",
+      "scope": "four_suites_2000",
+      "source_summary": "fusionA_no_wta_turbovla_base_20260916/evaluation_full2000/summary.json",
+      "suites": {
+        "libero_10": {
+          "successes": 393,
+          "episodes": 500,
+          "success_rate": 0.786
+        },
+        "libero_spatial": {
+          "successes": 451,
+          "episodes": 500,
+          "success_rate": 0.902
+        },
+        "libero_object": {
+          "successes": 478,
+          "episodes": 500,
+          "success_rate": 0.956
+        },
+        "libero_goal": {
+          "successes": 481,
+          "episodes": 500,
+          "success_rate": 0.962
+        }
+      },
+      "total_successes": 1803,
+      "total_episodes": 2000,
+      "training": {
+        "global_batch": 128,
+        "max_steps": 80000,
+        "sample_exposures": 10240000
+      },
+      "finished_at": "2026-09-18T14:40:13.766124+08:00",
+      "overall_success_rate": 0.9015,
+      "long_success_rate": 0.786
+    },
+    {
+      "id": "ffn_only",
+      "label": "旧 FFN-only",
+      "status": "completed",
+      "scope": "four_suites_2000",
+      "source_summary": "fusionA_heads_4plus4_20260912/ffn/evaluation/summary.json",
+      "suites": {
+        "libero_spatial": {
+          "successes": 397,
+          "episodes": 500,
+          "success_rate": 0.794
+        },
+        "libero_object": {
+          "successes": 457,
+          "episodes": 500,
+          "success_rate": 0.914
+        },
+        "libero_goal": {
+          "successes": 411,
+          "episodes": 500,
+          "success_rate": 0.822
+        },
+        "libero_10": {
+          "successes": 263,
+          "episodes": 500,
+          "success_rate": 0.526
+        }
+      },
+      "total_successes": 1528,
+      "total_episodes": 2000,
+      "training": {
+        "global_batch": null,
+        "max_steps": 10875,
+        "sample_exposures": 10240000
+      },
+      "finished_at": "2026-09-13T15:24:08.138307+08:00",
+      "overall_success_rate": 0.764,
+      "long_success_rate": 0.526
+    },
+    {
+      "id": "shiftmax_perdim",
+      "label": "① 原始Shiftmax＋逐维",
+      "status": "completed",
+      "scope": "four_suites_2000",
+      "source_summary": "fusionA_shiftmax_state8_20260913/perdim/evaluation/summary.json",
+      "suites": {
+        "libero_spatial": {
+          "successes": 456,
+          "episodes": 500,
+          "success_rate": 0.912
+        },
+        "libero_object": {
+          "successes": 486,
+          "episodes": 500,
+          "success_rate": 0.972
+        },
+        "libero_goal": {
+          "successes": 424,
+          "episodes": 500,
+          "success_rate": 0.848
+        },
+        "libero_10": {
+          "successes": 307,
+          "episodes": 500,
+          "success_rate": 0.614
+        }
+      },
+      "total_successes": 1673,
+      "total_episodes": 2000,
+      "training": {
+        "global_batch": 384,
+        "max_steps": 26667,
+        "sample_exposures": 10240128
+      },
+      "finished_at": "2026-09-14T23:27:09.617526+08:00",
+      "overall_success_rate": 0.8365,
+      "long_success_rate": 0.614
+    },
+    {
+      "id": "shiftmax_continuous_inputs",
+      "label": "② 连续attention入口＋脉冲FFN",
+      "status": "completed",
+      "scope": "four_suites_2000",
+      "source_summary": "fusionA_shiftmax_continuous_inputs_state8_20260914/perdim/evaluation/summary.json",
+      "suites": {
+        "libero_spatial": {
+          "successes": 433,
+          "episodes": 500,
+          "success_rate": 0.866
+        },
+        "libero_object": {
+          "successes": 449,
+          "episodes": 500,
+          "success_rate": 0.898
+        },
+        "libero_goal": {
+          "successes": 403,
+          "episodes": 500,
+          "success_rate": 0.806
+        },
+        "libero_10": {
+          "successes": 264,
+          "episodes": 500,
+          "success_rate": 0.528
+        }
+      },
+      "total_successes": 1549,
+      "total_episodes": 2000,
+      "training": {
+        "global_batch": 384,
+        "max_steps": 26667,
+        "sample_exposures": 10240128
+      },
+      "finished_at": "2026-09-15T13:52:09.333521+08:00",
+      "overall_success_rate": 0.7745,
+      "long_success_rate": 0.528
+    },
+    {
+      "id": "shiftmax_continuous_inputs_ann_ffn",
+      "label": "③ 连续attention入口＋ANN FFN",
+      "status": "completed",
+      "scope": "four_suites_2000",
+      "source_summary": "fusionA_shiftmax_continuous_inputs_ann_ffn_state8_20260914/perdim/evaluation/summary.json",
+      "suites": {
+        "libero_spatial": {
+          "successes": 450,
+          "episodes": 500,
+          "success_rate": 0.9
+        },
+        "libero_object": {
+          "successes": 487,
+          "episodes": 500,
+          "success_rate": 0.974
+        },
+        "libero_goal": {
+          "successes": 420,
+          "episodes": 500,
+          "success_rate": 0.84
+        },
+        "libero_10": {
+          "successes": 302,
+          "episodes": 500,
+          "success_rate": 0.604
+        }
+      },
+      "total_successes": 1659,
+      "total_episodes": 2000,
+      "training": {
+        "global_batch": 384,
+        "max_steps": 26667,
+        "sample_exposures": 10240128
+      },
+      "finished_at": "2026-09-16T02:17:05.345045+08:00",
+      "overall_success_rate": 0.8295,
+      "long_success_rate": 0.604
+    },
+    {
+      "id": "shiftmax_prelif_ann_ffn",
+      "label": "④ 入口PLIF＋ANN FFN",
+      "status": "completed",
+      "scope": "long_only_500",
+      "source_summary": "fusionA_shiftmax_prelif_ann_ffn_state8_20260915/perdim/evaluation_long/summary.json",
+      "suites": {
+        "libero_10": {
+          "successes": 333,
+          "episodes": 500,
+          "success_rate": 0.666
+        }
+      },
+      "total_successes": 333,
+      "total_episodes": 500,
+      "training": {
+        "global_batch": 384,
+        "max_steps": 26667,
+        "sample_exposures": 10240128
+      },
+      "finished_at": "2026-09-16T13:17:36.937252+08:00",
+      "overall_success_rate": null,
+      "long_success_rate": 0.666
+    },
+    {
+      "id": "shiftmax_projectfirst",
+      "label": "⑤ 状态先投影后PLIF＋脉冲FFN",
+      "status": "completed",
+      "scope": "long_only_500",
+      "source_summary": "fusionA_shiftmax_projectfirst_state8_spike_ffn_20260916/perdim/evaluation_long/summary.json",
+      "suites": {
+        "libero_10": {
+          "successes": 283,
+          "episodes": 500,
+          "success_rate": 0.566
+        }
+      },
+      "total_successes": 283,
+      "total_episodes": 500,
+      "training": {
+        "global_batch": 384,
+        "max_steps": 26667,
+        "sample_exposures": 10240128
+      },
+      "finished_at": "2026-09-18T02:38:23.890432+08:00",
+      "overall_success_rate": null,
+      "long_success_rate": 0.566
+    }
+  ],
+  "in_progress_as_of": "2026-09-18T22:24:07+08:00",
+  "in_progress": [
+    {
+      "id": "shiftmax_ann_state",
+      "actual_step": 25940,
+      "max_steps": 26667,
+      "global_batch": 384,
+      "samples": 9960960,
+      "stage": "training",
+      "long_result": null
+    },
+    {
+      "id": "minimal_cross_wta_bsmax",
+      "actual_step": 8164,
+      "max_steps": 26680,
+      "global_batch": 384,
+      "samples": 3129856,
+      "stage": "training",
+      "long_result": null,
+      "sample_formula": "2560 + (step - 20) * 384"
+    },
+    {
+      "id": "progressive_fullwta_t8",
+      "actual_step": 7276,
+      "max_steps": 32000,
+      "global_batch": 320,
+      "samples": 2328320,
+      "stage": "training_ann_alpha0",
+      "long_result": null,
+      "head_timesteps": 8,
+      "upstream_timesteps": 4
+    }
+  ],
+  "exclusions": [
+    "Stopped Deep run",
+    "Cancelled coordinate WTA evaluations (partial, unmatched task mixtures)",
+    "Superseded minimal-cross ANN fallback run",
+    "Superseded minimal-cross small-batch run (parent step20 retained for BSmax continuation)"
+  ],
+  "limitations": [
+    "Single training seed; no statistical significance claim.",
+    "Different batch/update histories are not strict single-variable controls.",
+    "Long-only results have no four-suite overall score.",
+    "Training loss cannot replace rollout evaluation.",
+    "Live controllers and private trained weights are not published."
+  ]
+}

@@ -15,7 +15,8 @@ from .temporal_fusion import (
     TemporalSelfAttention, TemporalSpikeInteraction, fire,
 )
 from .wta_operators import (
-    BipolarPLIF, MaskedTemporalBatchNorm, MultiWinnerAttention, checkpoint_contexts,
+    BipolarPLIF, MaskedTemporalBatchNorm, MultiWinnerAttention,
+    SpikeDotProductAttention, checkpoint_contexts,
 )
 
 
@@ -114,8 +115,11 @@ class WTASelfAttention(TemporalSelfAttention):
         self.norms = nn.ModuleDict({name: current_norm(dim, config)
                                    for name in ("input", "q", "k", "v", "context")})
         self.spike_nodes = nn.ModuleDict({name: BipolarPLIF() for name in self.norms})
-        self.routing = MultiWinnerAttention(
-            config.wta_text_topk, self.head_dim, config.wta_surrogate_temperature)
+        if config.text_attention_routing == "wta":
+            self.routing = MultiWinnerAttention(
+                config.wta_text_topk, self.head_dim, config.wta_surrogate_temperature)
+        else:
+            self.routing = SpikeDotProductAttention()
 
     def forward_step(self, src, valid, allowed, state, time_index=0):
         def encode(name, current, mask=valid):

@@ -1,4 +1,4 @@
-"""BSA/Shiftmax action head with eight coordinate-local signed-spike tokens.
+"""BSA/Shiftmax action head with eight coordinate-local state tokens.
 
 Adapted from Bipolar Self-attention for Spiking Transformers, NeurIPS 2025,
 equations 13-19. Q/K are signed unit PLIF events; V retains normalized current
@@ -20,7 +20,7 @@ from torch import nn
 from .components.wta_operators import BipolarPLIF
 from .deep_spike_action_head import DeepSpikeACTDecoder, TokenCurrentNorm
 from .full_state_action_head import CoordinateSpikeStateProjection, FullStateSpikeActionHead
-from .spike_action_head import SpikeAttention
+from .spike_action_head import SpikeAttention, SpikeDecoderLayer
 
 
 class _Shiftmax(torch.autograd.Function):
@@ -66,16 +66,21 @@ class ShiftmaxRouting(nn.Module):
 
 
 class ShiftmaxActionAttention(SpikeAttention):
-    def __init__(self, hidden_dim, nheads, interaction):
+    def __init__(self, hidden_dim, nheads, interaction, *, continuous_inputs=False):
         super().__init__(hidden_dim, nheads, interaction)
+        self.continuous_inputs = continuous_inputs
         self.norms = nn.ModuleDict({
             name: TokenCurrentNorm(hidden_dim, eps=interaction.spike_norm_eps)
             for name in self.norms
         })
         # V is the normalized projection current in BSA Eq.16, not TSN(V).
-        # Do not retain unused V-neuron parameters in the DDP optimizer.
+        # Continuous inputs keep their precision until the Q/K projections.
+        # Do not retain unused neuron parameters in the DDP optimizer.
+        continuous_nodes = {"value"}
+        if continuous_inputs:
+            continuous_nodes.update({"input_query", "input_memory"})
         self.spike_nodes = nn.ModuleDict({
-            name: BipolarPLIF() for name in self.norms if name != "value"
+            name: BipolarPLIF() for name in self.norms if name not in continuous_nodes
         })
         self.routing = ShiftmaxRouting()
 
@@ -88,11 +93,15 @@ class ShiftmaxActionAttention(SpikeAttention):
             )
             return spikes
 
-        sq = fire("input_query", query, query_valid)
-        sm = fire("input_memory", memory, memory_valid)
-        q = fire("query", self.query(sq), query_valid)
-        k = fire("key", self.key(sm), memory_valid)
-        v = self.norms["value"](self.value(sm), memory_valid, t)
+        if self.continuous_inputs:
+            query_input = self.norms["input_query"](query, query_valid, t)
+            memory_input = self.norms["input_memory"](memory, memory_valid, t)
+        else:
+            query_input = fire("input_query", query, query_valid)
+            memory_input = fire("input_memory", memory, memory_valid)
+        q = fire("query", self.query(query_input), query_valid)
+        k = fire("key", self.key(memory_input), memory_valid)
+        v = self.norms["value"](self.value(memory_input), memory_valid, t)
         batch, nq, channels = q.shape
         nk = k.shape[1]
         q = q.reshape(batch, nq, self.nheads, self.head_dim).transpose(1, 2)
@@ -108,12 +117,53 @@ class ShiftmaxActionAttention(SpikeAttention):
         return self.output(fire("context", context, live)).masked_fill(~live, 0.0)
 
 
+class ContinuousFFNDecoderLayer(SpikeDecoderLayer):
+    """A's pre-norm continuous FFN inside the unchanged temporal decoder.
+
+    Reuse the constructed common Linear/LayerNorm/attention modules, so this
+    replacement consumes no initialization RNG. No FFN PLIF, hidden norm or
+    membrane state remains. Each timestep keeps its own continuous FFN output.
+    """
+
+    def __init__(self, layer, dropout):
+        nn.Module.__init__(self)
+        self.self_attn = layer.self_attn
+        self.cross_attn = layer.cross_attn
+        self.linear1, self.linear2 = layer.linear1, layer.linear2
+        self.norms = nn.ModuleDict({"input": layer.norms["input"]})
+        self.activation = nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
+        self.dropout3 = nn.Dropout(dropout)
+
+    def forward_step(self, x, memory, memory_valid, state, t):
+        query_valid = torch.ones((*x.shape[:2], 1), device=x.device, dtype=torch.bool)
+        x = x + self.self_attn.forward_step(x, x, query_valid, state.setdefault("self", {}), t)
+        x = x + self.cross_attn.forward_step(x, memory, memory_valid, state.setdefault("cross", {}), t)
+        hidden = self.norms["input"](x, time_index=t)
+        hidden = self.linear2(self.dropout(self.activation(self.linear1(hidden))))
+        return x + self.dropout3(hidden)
+
+
 class ShiftmaxACTDecoder(DeepSpikeACTDecoder):
     def __init__(self, config, hidden_dim, nheads, dim_feedforward, interaction):
         super().__init__(config, hidden_dim, nheads, dim_feedforward, interaction)
-        for layer in self.layers:
-            layer.self_attn = ShiftmaxActionAttention(hidden_dim, nheads, interaction)
-            layer.cross_attn = ShiftmaxActionAttention(hidden_dim, nheads, interaction)
+        continuous_ffn = config.head_type in {
+            "full_spike_state8_shiftmax_continuous_inputs_ann_ffn",
+            "full_spike_state8_shiftmax_ann_ffn",
+        }
+        continuous_inputs = config.head_type in {
+            "full_spike_state8_shiftmax_continuous_inputs",
+            "full_spike_state8_shiftmax_continuous_inputs_ann_ffn",
+        }
+        for index, layer in enumerate(self.layers):
+            layer.self_attn = ShiftmaxActionAttention(
+                hidden_dim, nheads, interaction, continuous_inputs=continuous_inputs,
+            )
+            layer.cross_attn = ShiftmaxActionAttention(
+                hidden_dim, nheads, interaction, continuous_inputs=continuous_inputs,
+            )
+            if continuous_ffn:
+                self.layers[index] = ContinuousFFNDecoderLayer(layer, config.dropout)
 
 
 class FullStateShiftmaxActionHead(FullStateSpikeActionHead):

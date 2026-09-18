@@ -147,6 +147,7 @@ def parse_args():
     parser.add_argument("--cross_attention_type", choices=["ann", "spike_sdsa", "spike_wta"], default="ann")
     parser.add_argument("--fusion_backbone_type", choices=["hybrid", "spike_temporal", "spike_wta", "spike_text_only"], default="hybrid")
     parser.add_argument("--text_only_spike_projections", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--text_attention_routing", choices=["wta", "sdsa"], default="wta")
     parser.add_argument("--wta_text_topk", type=int, default=3)
     parser.add_argument("--wta_vision_topk", type=int, default=8)
     parser.add_argument("--wta_surrogate_temperature", type=float, default=1.0)
@@ -159,10 +160,10 @@ def parse_args():
     parser.add_argument("--cross_timesteps", type=int, default=4)
     parser.add_argument("--cross_gradient_checkpointing", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--action_head_type", choices=[
-        "ann", "spike_sdsa", "hybrid_spike_ffn", "deep_spike_wta",
-        "full_spike_state8_wta", "full_spike_state8_shiftmax",
+        "ann", "spike_sdsa", "minimal_cross_wta", "progressive_full_wta", "hybrid_spike_ffn", "deep_spike_wta",
+        "full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn",
     ], default="ann")
-    parser.add_argument("--spike_state_encoding", choices=["perdim_plif", "multithreshold"], default="perdim_plif")
+    parser.add_argument("--spike_state_encoding", choices=["perdim_plif", "multithreshold", "project_then_plif", "perdim_ann"], default="perdim_plif")
     parser.add_argument("--continuous_state", action="store_true",
                         help="Use A continuous state MLP with a spike-body action head")
     parser.add_argument("--action_dim", type=int, default=7)
@@ -297,7 +298,7 @@ def build_model_architecture(args):
     model_args.cross_attention_type = getattr(args, "cross_attention_type", "ann")
     model_args.fusion_backbone_type = getattr(args, "fusion_backbone_type", "hybrid")
     model_args.text_only_spike_projections = getattr(args, "text_only_spike_projections", False)
-    for name in ("wta_text_topk", "wta_vision_topk", "wta_surrogate_temperature",
+    for name in ("text_attention_routing", "wta_text_topk", "wta_vision_topk", "wta_surrogate_temperature",
                  "spike_norm_momentum", "spike_norm_eps", "spike_norm_sync"):
         if hasattr(args, name):
             setattr(model_args, name, getattr(args, name))
@@ -371,6 +372,7 @@ def build_distillation_teacher(args):
         teacher_args.text_head_mask_version = None
         teacher_args.cross_attention_type = "ann"
         teacher_args.fusion_backbone_type = "hybrid"
+        teacher_args.text_attention_routing = "wta"
         teacher_args.action_head_type = "ann"
         teacher_args.continuous_state = False
         # The public teacher keeps its original two state tokens.
@@ -944,6 +946,11 @@ def train_model():
         action_distill_window = []
         text_distill_window = []
         while global_step < args.max_steps:
+            if args.action_head_type == "progressive_full_wta":
+                head = unwrap_model(model).action_head
+                alpha = head.set_progress(global_step, args.lr_schedule_steps)
+                if rank == 0 and global_step % args.log_freq == 0:
+                    print(f"transition step={global_step} alpha={alpha:.8f} head_T=8 upstream_T=4", flush=True)
             optimizer.zero_grad(set_to_none=True)
             loss_accum = 0.0
             action_loss_accum = 0.0
@@ -1078,6 +1085,8 @@ def train_model():
                     window.pop(0)
 
             global_step += 1
+            if args.action_head_type == "progressive_full_wta":
+                unwrap_model(model).action_head.set_progress(global_step, args.lr_schedule_steps)
 
             if rank == 0:
                 avg_window_loss = sum(loss_window) / len(loss_window)

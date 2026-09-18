@@ -183,7 +183,18 @@ class TurboVLA(nn.Module):
                 self.vision_projection = projection
                 if self.temporal_spike:
                     self.vision_language_interaction = TemporalSpikeInteraction(config.interaction)
-        if config.action.head_type == "spike_sdsa":
+        if config.action.head_type == "progressive_full_wta":
+            from .progressive_full_wta_head import ProgressiveFullWTAHead
+            with torch.random.fork_rng(devices=[]):
+                self.action_head = ProgressiveFullWTAHead(self.action_head, config.action, config.interaction)
+        elif config.action.head_type == "minimal_cross_wta":
+            from .minimal_cross_wta_head import MinimalCrossWTAActionHead
+            with torch.random.fork_rng(devices=[]):
+                self.action_head = MinimalCrossWTAActionHead(
+                    config.action, hidden_dim, config.interaction.nheads,
+                    config.interaction.dim_feedforward, config.interaction, self.action_head,
+                )
+        elif config.action.head_type == "spike_sdsa":
             from .spike_action_head import SpikeTurboVLAActionHead
             # Finish A's original constructor first. Replacing the head must not
             # change initialization/RNG consumption of any unchanged component.
@@ -204,8 +215,8 @@ class TurboVLA(nn.Module):
                 )
                 head.load_common(self.action_head)
                 self.action_head = head
-        elif config.action.head_type in {"deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax"}:
-            if config.action.head_type == "full_spike_state8_shiftmax":
+        elif config.action.head_type in {"deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn"}:
+            if config.action.head_type in {"full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn"}:
                 from .shiftmax_action_head import FullStateShiftmaxActionHead as Head
             elif config.action.head_type == "full_spike_state8_wta":
                 from .full_state_action_head import FullStateSpikeActionHead as Head
@@ -394,7 +405,7 @@ class TurboVLA(nn.Module):
         return_distillation_features: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, Any]:
         spike_action_head = self.config.action.head_type in {
-            "spike_sdsa", "deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax",
+            "spike_sdsa", "deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn",
         }
         need_features = return_distillation_features or spike_action_head
         encoded = self.encode_condition(
@@ -521,6 +532,7 @@ def build_turbovla(args: TurboVLAConfig | Mapping[str, Any] | Any) -> TurboVLA:
                 cross_timesteps=int(_arg(args, "cross_timesteps", 4)),
                 cross_gradient_checkpointing=bool(_arg(args, "cross_gradient_checkpointing", True)),
                 projection_gradient_checkpointing=bool(_arg(args, "projection_gradient_checkpointing", False)),
+                text_attention_routing=str(_arg(args, "text_attention_routing", "wta")),
                 wta_text_topk=int(_arg(args, "wta_text_topk", 3)),
                 wta_vision_topk=int(_arg(args, "wta_vision_topk", 8)),
                 wta_surrogate_temperature=float(_arg(args, "wta_surrogate_temperature", 1.0)),
@@ -532,7 +544,7 @@ def build_turbovla(args: TurboVLAConfig | Mapping[str, Any] | Any) -> TurboVLA:
                 head_type=str(_arg(args, "action_head_type", "ann")),
                 continuous_state=bool(_arg(args, "continuous_state", False)),
                 spike_state_encoding=str(_arg(args, "spike_state_encoding", "perdim_plif")),
-                spike_timesteps=int(_arg(args, "cross_timesteps", 4)),
+                spike_timesteps=8 if _arg(args, "action_head_type", "ann") == "progressive_full_wta" else int(_arg(args, "cross_timesteps", 4)),
                 spike_gradient_checkpointing=bool(_arg(args, "action_head_gradient_checkpointing", True)),
                 spike_state_population=int(_arg(args, "spike_state_population", 0)),
                 spike_state_population_range=float(_arg(args, "spike_state_population_range", 4.0)),

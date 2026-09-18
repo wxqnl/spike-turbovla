@@ -1,224 +1,102 @@
-# Action Head 修改类：配置与运行命令
+# LIBERO 变体：代码、配方与复现
 
-更新：2026-09-14。新 A 80k 是 ANN 动作头基线；逐维 WTA、多阈值 WTA、Shiftmax＋逐维统一放在本类。新 A 已完成 2,000 回合评测，成功率为 **92.35%（1847/2000）**；三个新动作头尚未公布完整评测。
+更新：2026-09-18。结果见[根README](../README.md)与[结果JSON](results/libero_20260918.json)。以下命令仅用于新建实验，不操作已有训练或评测。
 
-当前服务器上的三组训练和评测等待器已经启动。下面的训练、刷新、评测命令用于**另外新建的实验**，不能在现有运行目录重复执行。本次发布不改正在运行的源码快照，不重启、扩卡或重跑评测。
+## 统一入口
 
-## 1. 固定的上游与训练范围
+入口为 `python -m experiments.libero.train_action_head --variant NAME`，读取[配方JSON](../experiments/libero/configs/action_head_variants.json)。先用 `--dry-run` 查看展开参数；正式训练要求 `--approve_training`、匹配的torchrun进程数，以及代码目录外尚不存在的输出目录。它不自动运行EMA刷新或评测。
 
-- 双视角 SDT-V3 19M，输入224、输出14×14；在线 SmoothSpike BERT，T=4。
-- signed PLIF 视觉/文本投影，`spike_text_only` 融合；保留旧二值 Spike SDSA Cross，文本 Self-Attention / FFN 使用脉冲实现。
-- hidden256、8 heads、6层融合、FFN2048。状态输入8维，动作输出7维，chunk/open-loop12。
+| NAME | 对应实验 | rank × batch | steps / warmup | 评测记录 |
+| --- | --- | --- | --- | --- |
+| `a_base` | 新A，ANN头 | 4×32 | 80000 / 10000步 | 四套92.35% |
+| `a_no_wta` | A−WTA，六层文本改SDSA式点积 | 4×32 | 80000 / 10000步 | 四套90.15% |
+| `perdim` | 逐维WTA，8-token | 2×192 | 26667 / 1280000样本 | 用户取消评测 |
+| `multithreshold` | 多阈值WTA，8-token | 2×192 | 同上 | 用户取消评测 |
+| `shiftmax_perdim` | ① 逐维PLIF＋入口PLIF＋spike FFN | 4×96 | 同上 | 四套83.65% |
+| `shiftmax_continuous_inputs` | ② 连续attention入口＋spike FFN | 4×96 | 同上 | 四套77.45% |
+| `shiftmax_continuous_inputs_ann_ffn` | ③ 连续attention入口＋ANN FFN | 4×96 | 同上 | 四套82.95% |
+| `shiftmax_prelif_ann_ffn` | ④ 入口PLIF＋ANN FFN | 4×96 | 同上 | 仅Long66.6% |
+| `shiftmax_projectfirst` | ⑤ 状态先投影后PLIF＋入口PLIF＋spike FFN | 4×96 | 同上 | 仅Long56.6% |
+| `shiftmax_ann_state` | ⑥ ANN逐维状态＋连续attention入口＋spike FFN | 4×96 | 同上 | 未完成 |
+| `minimal_cross_wta` | A形状，只改action cross内部；原小batch前段 | 4×32 | 80000 / 10000步 | 被BSmax续训替代；不是当前BS96配方 |
+| `progressive_fullwta_t8` | 共享参数渐进全头WTA，2-token | 4×80 | 32000 / 1280000样本 | 未完成 |
 
-“固定”指结构与公共初始化方案。视觉、投影、融合、状态分支、动作解码器仍联合训练，只有文本骨干冻结。每组从 SDT-V3、SmoothSpike、GroundingDINO 等公共组件初始化；公共文本投影初始化只使用训练指令校正接口，不含已训练策略。公开 TurboVLA 是冻结教师，保持自己的2个 state token，不从学生继承8-token配置。三组不加载新 A、旧 Deep、旧 AA、容量预检的策略或优化器。
+①—⑥为8个逐坐标state token、head T4、3层decoder/hidden256/heads8/FFN2048/readout256→512→512→7、horizon12。A、A−WTA和minimal-cross为A原ANN 2-token状态MLP。最初两种WTA也是8-token/T4，但前向为二值Top3/Top8，Shiftmax系列保留连续V。
 
-[机器可读配置](../experiments/libero/configs/action_head_variants.json)由[统一入口](../experiments/libero/train_action_head.py)直接读取。入口核对实际 world size、每卡 batch、累积次数和总步数；没有匹配的配方就停止，不会静默改预算。
+上游共用SDT-V3、SmoothSpike T4、脉冲投影和spike_text_only融合；除A−WTA文本路由外，六层文本Top3 WTA和SDSA Cross保持不变。文本骨干冻结，其余七组联合训练；固定结构不等于冻结上游权重。
 
-## 2. 三种动作头
+## 初始化与优化
 
-| 配置项 | 逐维 WTA | 多阈值 WTA | Shiftmax＋逐维 |
-| --- | --- | --- | --- |
-| `--variant` | `perdim` | `multithreshold` | `shiftmax_perdim` |
-| `action_head_type` | `full_spike_state8_wta` | `full_spike_state8_wta` | `full_spike_state8_shiftmax` |
-| `spike_state_encoding` | `perdim_plif` | `multithreshold` | `perdim_plif` |
-| state token | 8，每个状态坐标一个 | 8，每个状态坐标一个 | 8，每个状态坐标一个 |
-| 状态事件 | 每维 signed PLIF，1→256投影 | 每维32阈值，32→256投影 | 同逐维 WTA |
-| 神经元时间 / ACT层数 | T4 / 3层 | T4 / 3层 | T4 / 3层 |
-| Self / Cross 注意力 | binary multi-winner，top-k 3 / 8 | 同左 | Shiftmax，无 top-k |
-| Q / K / V | signed单位事件 | signed单位事件 | Q/K为signed事件，V为归一化投影电流 |
-| 头部归一化 | token-local LayerNorm | 同左 | 同左 |
-| 状态位置 / 隐藏宽度 | 逐坐标位置偏置 / 256 | 同左 | 同左 |
-| 最终动作 | 脉冲驱动投影，T维电流均值后tanh | 同左 | 同左 |
+Fresh配方使用公共组件和同方案公共文本投影初始化，不加载训练好的A、其他变体或容量探测权重。数据为原四套no-noops LeRobot训练集；action L1 + 0.1 raw featureKD + 0.1 raw actionKD，textKD=0。
 
-状态先使用固定的逐维训练数据统计归一化。每个神经元时间步都接收全部8个坐标，**不把8维切成4段**。多阈值版每维每步32个阈值，T4交错共128个边界覆盖标准化区间[-4,4]，减去零状态的事件码后输出-1/0/+1；它不是旧群体残差修复的续跑。逐维 PLIF 配置中保留 `state_population=32` 以统一元数据，但该分支实际输入事件维度为1。
+固定seed42、FP32/highest、CUDA与cuDNN TF32关闭；AdamW(0.9,0.95)、eps1e-8、weight decay1e-10、clip1、EMA0.999。视觉LR1e-5、其余5e-5，不随batch放大。warmup从峰值约0.1倍线性升到峰值，之后恒定，min_lr_ratio=1。样本warmup沿用128样本前瞻项。WSD与真正cosine LR衰减均未实施。
 
-WTA 的 softmax 只用于 surrogate backward，前向是二值多赢家路由。Shiftmax 自注意力与交叉注意力使用：
+A、A−WTA、minimal-cross和渐进组关闭vision activation checkpointing；①—⑥及两种逐维WTA开启。上游Cross开启、projection关闭；spike head保留重计算支持。原ANN头与minimal-cross继承ANN执行路径，没有额外head重计算包装。
 
-```text
-w_i = 2 ** (x_i - ceil(log2(sum_j(2 ** x_j))))
-x = Q @ K.T
-```
+## 新建实验示例
 
-有效行的权重和在(0.5,1]，全padding行输出0；有效但没有发放脉冲的key不视为padding。Q/K为单位signed事件，因此QK分数为整数；不增加sqrt(d)、score std归一化或分数取整。ceil采用明确实现的STE归一化反向，保留跨key竞争。V不再额外二值化，聚合后经归一化及signed PLIF再投影。
-
-该实现参考 [Bipolar Self-attention for Spiking Transformers，NeurIPS 2025](https://papers.nips.cc/paper_files/paper/2025/hash/9316cfcb0a81e53a1f35b4353f115571-Abstract-Conference.html)，适配了 ACT、PLIF、LayerNorm 与 padding。它不是论文整网复现。归一化、电流、膜电位、残差、V聚合及最终机器人动作保留连续量；GPU上使用稠密FP32张量，不宣称整数硬件、稀疏硬件、实测节能或加速。
-
-实现：[逐坐标状态与WTA头](../turbovla/models/full_state_action_head.py)、[共享WTA解码器](../turbovla/models/deep_spike_action_head.py)、[Shiftmax头](../turbovla/models/shiftmax_action_head.py)。共享文件保留历史名称，引用它不表示恢复已停止的旧 Deep 实验。
-
-## 3. 训练预算
-
-| 配置 | 新 A 基线 | 逐维 WTA | 多阈值 WTA | Shiftmax＋逐维 |
-| --- | ---: | ---: | ---: | ---: |
-| `--variant` | `a_base` | `perdim` | `multithreshold` | `shiftmax_perdim` |
-| GPU / rank数 | 4 | 2 | 2 | 4 |
-| 每卡batch / 累积 | 32 / 1 | 192 / 1 | 192 / 1 | 96 / 1 |
-| global batch | 128 | 384 | 384 | 384 |
-| 优化器更新步数 | 80,000 | 26,667 | 26,667 | 26,667 |
-| 样本曝光次数 | 10,240,000 | 10,240,128 | 10,240,128 | 10,240,128 |
-| warmup | 10,000步 | 1,280,000样本 | 同左 | 同左 |
-| vision重计算 | 关闭 | all | all | all |
-| Cross / head重计算 | 开启 / ANN头不适用 | 开启 / 开启 | 开启 / 开启 | 开启 / 开启 |
-| projection重计算 | 关闭 | 关闭 | 关闭 | 关闭 |
-| checkpoint前缀 | `spike_a_turbovla_base` | `spike_state8_perdim` | `spike_state8_multithreshold` | `spike_shiftmax_perdim` |
-
-三种动作头以 `ceil(10,240,000 / 384) = 26,667` 对齐预算，多出的128次曝光小于一个global batch。样本warmup保留A配方的128样本前瞻项；`warmup_steps=3334`，实际调度以 `lr_warmup_samples=1280000` 为准。新A使用原10,000步warmup。
-
-公共设置为 seed42、FP32/highest、两类TF32关闭；AdamW(0.9,0.95)、eps1e-8、weight decay1e-10、clip1、EMA0.999；视觉LR1e-5，其余5e-5，warmup后保持不变。损失是动作L1 + 0.1 featureKD + 0.1 actionKD，textKD0。每1,000步、step20和final保存，日志每20步报告一次，4个DataLoader worker/rank。
-
-四rank×96与双rank×192虽然global batch相同，但数据分片顺序和每rank BN不同。Shiftmax还同时改变路由与V路径。与A、FFN比较时batch和更新历史也不同，不能写成严格单变量消融。训练曲线只能说明拟合进度，最终能力看2,000回合评测。
-
-## 4. 准备环境与预览
-
-先完成[根README的依赖、权重和四套训练数据准备](../README.md)，加载 `.env`，并按[公共文本投影初始化](training_variants.md#公共文本投影初始化)准备 `SPIKE_TEXT_INIT_DIR/text_projection.pth`。三个新动作头使用同一份初始化文件。
-
-服务器操作先 `ssh New-H100-3`，再 `cd /data/Minko`。把 `SPIKE_CODE_ROOT` 指向**已更新的发布仓库**，从工作目录使用它的模块：
+先按[LIBERO安装与公共初始化说明](../experiments/libero/README.md#best-a-reproduce)准备依赖、数据、公共权重、`.env` 与 `SPIKE_TEXT_INIT_DIR`。从自己的代码检出配置 `PYTHONPATH`，输出放在代码目录外。下例选择⑤；其他版本按表替换NAME、world-size、batch和steps。
 
 ```bash
-# 发布副本；若另行检出仓库，请改为对应路径
-export SPIKE_CODE_ROOT=/data/Minko/spike-turbovla-release-20260911
-export PYTHONPATH="$SPIKE_CODE_ROOT:$SPIKE_CODE_ROOT/third_party/vla_adapter:$SPIKE_CODE_ROOT/third_party/starvla_runtime"
-# 使用已准备好的项目Python环境，并加载该检出的.env
+export SPIKE_CODE_ROOT="$PWD"
 set -a
 source "$SPIKE_CODE_ROOT/.env"
 set +a
+export PYTHONPATH="$SPIKE_CODE_ROOT:$SPIKE_CODE_ROOT/third_party/vla_adapter:$SPIKE_CODE_ROOT/third_party/starvla_runtime"
 unset NVIDIA_TF32_OVERRIDE TORCH_ALLOW_TF32_CUBLAS_OVERRIDE
+export SPIKE_HEAD_RUN="$SPIKE_RUN_ROOT/shiftmax_projectfirst_new"
 
-# 三个新动作头复用已准备好的公共初始化；不重新校准现有运行
-export SPIKE_TEXT_INIT_DIR="$SPIKE_RUN_ROOT/common_text_init_new"
-```
-
-下列示例要求已经选用安装了项目依赖的Python。公共模型、数据、运行输出不在Git仓库内；GitHub发布不包含训练checkpoint。只安装代码而没有准备资产，不能直接启动模型。
-
-逐维 WTA 预览，不创建输出、不导入训练器、不使用GPU：
-
-```bash
 python -m experiments.libero.train_action_head \
-  --variant perdim --world-size 2 --dry-run \
-  --run_dir "$SPIKE_RUN_ROOT/action_head_perdim_new" \
+  --variant shiftmax_projectfirst --world-size 4 --dry-run \
+  --run_dir "$SPIKE_HEAD_RUN" \
   --vision_checkpoint "${SPIKE_VISION_CHECKPOINT:-$SPIKE_WORK_ROOT/pretrained/SDT-V3/V3_19.0M_1x4.pth}" \
   --text_projection_init "$SPIKE_TEXT_INIT_DIR/text_projection.pth" \
-  --max_steps 26667 --batch_size 192 --grad_accum_steps 1
-```
+  --max_steps 26667 --batch_size 96 --grad_accum_steps 1
 
-多阈值预览改为 `--variant multithreshold`；Shiftmax预览使用 `--variant shiftmax_perdim --world-size 4 --batch_size 96`。`--world-size`只用于预览，正式运行以torchrun的实际world size为准。`--help`列出公共参数；本入口固定配方中的warmup、保存周期、重计算等值，展开后的JSON是最终配置。
-
-## 5. 新建训练的命令
-
-必须先确认指定卡空闲，并使用未存在的新运行目录。以下三条不是要依次执行的脚本；根据本次要复现的版本选择一条。当前服务器上的三组实验不再执行这些命令。
-
-### 逐维 WTA：2卡×192
-
-```bash
-CUDA_VISIBLE_DEVICES=4,5 python -m torch.distributed.run \
-  --standalone --nproc_per_node=2 --module experiments.libero.train_action_head \
-  --variant perdim --run_dir "$SPIKE_RUN_ROOT/action_head_perdim_new" \
-  --vision_checkpoint "${SPIKE_VISION_CHECKPOINT:-$SPIKE_WORK_ROOT/pretrained/SDT-V3/V3_19.0M_1x4.pth}" \
-  --text_projection_init "$SPIKE_TEXT_INIT_DIR/text_projection.pth" \
-  --max_steps 26667 --batch_size 192 --grad_accum_steps 1 \
-  --resume_mode none --approve_training
-```
-
-### 多阈值 WTA：2卡×192
-
-```bash
-CUDA_VISIBLE_DEVICES=6,7 python -m torch.distributed.run \
-  --standalone --nproc_per_node=2 --module experiments.libero.train_action_head \
-  --variant multithreshold --run_dir "$SPIKE_RUN_ROOT/action_head_multithreshold_new" \
-  --vision_checkpoint "${SPIKE_VISION_CHECKPOINT:-$SPIKE_WORK_ROOT/pretrained/SDT-V3/V3_19.0M_1x4.pth}" \
-  --text_projection_init "$SPIKE_TEXT_INIT_DIR/text_projection.pth" \
-  --max_steps 26667 --batch_size 192 --grad_accum_steps 1 \
-  --resume_mode none --approve_training
-```
-
-### Shiftmax＋逐维：4卡×96
-
-```bash
+# 仅在这四张卡已确认空闲、输出目录尚不存在时执行
 CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.run \
   --standalone --nproc_per_node=4 --module experiments.libero.train_action_head \
-  --variant shiftmax_perdim --run_dir "$SPIKE_RUN_ROOT/action_head_shiftmax_perdim_new" \
+  --variant shiftmax_projectfirst --run_dir "$SPIKE_HEAD_RUN" \
   --vision_checkpoint "${SPIKE_VISION_CHECKPOINT:-$SPIKE_WORK_ROOT/pretrained/SDT-V3/V3_19.0M_1x4.pth}" \
   --text_projection_init "$SPIKE_TEXT_INIT_DIR/text_projection.pth" \
   --max_steps 26667 --batch_size 96 --grad_accum_steps 1 \
   --resume_mode none --approve_training
 ```
 
-### 新 A 基线配方：4卡×32、80k
+统一入口仅发布fresh配方，明确拒绝resume；恢复已有实验必须使用其原控制器或经过核对的底层训练命令。以上示例不是服务器队列命令，不会替代现有控制器。
 
-以下是另建基线实验的命令；已经完成的新 A 不重跑。GPU编号仅为新运行的示例，不授权自动使用node42的空卡或占用当前node43任务。
+## minimal-cross BSmax的历史分段配方
 
-```bash
-CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.run \
-  --standalone --nproc_per_node=4 --module experiments.libero.train_action_head \
-  --variant a_base --run_dir "$SPIKE_RUN_ROOT/a_base_80k_new" \
-  --vision_checkpoint "${SPIKE_VISION_CHECKPOINT:-$SPIKE_WORK_ROOT/pretrained/SDT-V3/V3_19.0M_1x4.pth}" \
-  --text_projection_init "$SPIKE_TEXT_INIT_DIR/text_projection.pth" \
-  --max_steps 80000 --batch_size 32 --grad_accum_steps 1 \
-  --resume_mode none --approve_training
-```
+当前在训组并非上表fresh 4×32运行到80000：用户在自身step20保存后改为4×96，从这个唯一前段checkpoint恢复model、optimizer、scheduler和EMA。未落盘的小batch步数未计入续训预算，数据迭代器/RNG不是bitwise延续。
 
-## 6. EMA刷新与完整评测
+- 前段：20更新×global128=2560样本。
+- 后段：26660更新×global384；最终global_step=26680，总计10240000样本。
+- scheduler：warmup_steps=3347、lr_warmup_samples=1280000、lr_sample_offset=2560、lr_step_offset=20、lr_reference_batch=128、lr_schedule_steps=26680、min_lr_ratio=1。
+- 架构与学习率未改；vision重计算仍关闭。96为当时真实完整模型容量探测选出的安全batch，不承诺其他机器可用同batch。
+- checkpoint前缀为 `spike_a_minimal_crosswta_bsmax`，保存step40、每1000与最终；step20链接仅是自身前段恢复点。
 
-统一入口只训练，不自动创建后台队列。对于新建实验，训练进程成功退出、final checkpoint保存完整后，再刷新及评测。部署中的三组已有各自控制器自动衔接，不额外运行本节。
+本次收录该头的真实实现与上述恢复协议，不把BS96运行伪装为fresh 4×96，也不提供会自动复制私人断点或启动旧控制器的脚本。代码和公共初始化足够新建独立实验，但复现这次历史轨迹还需自己的前段完整断点与明确的全状态恢复流程。
 
-以另建的Shiftmax实验为例，只使用本组的一张空闲卡，训练数据128×16刷新BN，0次optimizer更新：
+## 渐进全头：日程与T
 
-```bash
-export SPIKE_HEAD_RUN="$SPIKE_RUN_ROOT/action_head_shiftmax_perdim_new"
-export SPIKE_HEAD_EMA="$SPIKE_HEAD_RUN/evaluation/spike_shiftmax_perdim_26667_ema_trainbn128x16.pth"
-CUDA_VISIBLE_DEVICES=0 python -m experiments.libero.refresh_wta_norms \
-  --checkpoint "$SPIKE_HEAD_RUN/checkpoints/spike_shiftmax_perdim_26667.pth" \
-  --output "$SPIKE_HEAD_EMA" --batches 128 --batch_size 16
-```
+发布的是目前实际运行的 `progressive_fullwta_t8`：上游T4、action head T8、2个state token。上游先聚合为连续memory，head内部独立积分，不把T4张量直接解释成T8。T4替换尚未实施。
 
-逐维、多阈值分别替换运行目录和前缀 `spike_state8_perdim`、`spike_state8_multithreshold`；新A使用 `spike_a_turbovla_base_80000.pth`。刷新输出仅供推理，不作为训练恢复文件；迁移机器时仍要提供checkpoint记录的公共资产和训练数据路径。
+同一套原Linear、packed QKV、embedding和位置参数同时服务ANN与spike计算，没有阶段切换时拷权重。ANN端点保留A原forward、激活与dropout；spike端点覆盖state、self/cross输入及QKV/context、FFN和readout，使用signed BipolarPLIF及selfTop3/crossTop8 WTA。每次观测重置神经元状态，最终为tanh(mean_T currents)。
 
-下面顺序评估四套，各10任务×50回合，总计2,000回合。目录必须是新的，不重复汇总任务：
+p=completed_updates/32000，p≤0.8时alpha=0，0.8<p<0.85时半余弦升到1，之后alpha=1。输出为(1−alpha)×ANN_actions+alpha×Spike_actions；两个端点分别跳过不用的分支。前25600步ANN、过渡1600步、最后4800步纯spike，额外保存25600/27200。alpha和更新计数作为buffer进入raw与EMA checkpoint；恢复按global_step重算。alpha=0时spike专用参数没有梯度是设计行为。
 
-```bash
-mkdir -p "$SPIKE_HEAD_RUN/evaluation/final_2000"
-for SPIKE_SUITE in libero_spatial libero_object libero_goal libero_10; do
-  CUDA_VISIBLE_DEVICES=0 python -m experiments.libero.evaluate \
-    --ckpt_path "$SPIKE_HEAD_EMA" --checkpoint_weights ema \
-    --libero_root "${SPIKE_LIBERO_ROOT:-$SPIKE_WORK_ROOT/benchmarks/LIBERO}" \
-    --dinov3_path "${SPIKE_DINO_PATH:-$SPIKE_WORK_ROOT/pretrained/TurboVLA/backbones/dinov3-vitb16}" \
-    --bert_path "${SPIKE_BERT_PATH:-$SPIKE_WORK_ROOT/pretrained/TurboVLA/backbones/bert-base-uncased}" \
-    --stats_path "$SPIKE_CODE_ROOT/experiments/libero/configs/libero_all4_stats.json" \
-    --stats_key libero_all4_no_noops --normalize_binary_gripper false \
-    --task_suite_name "$SPIKE_SUITE" --num_trials_per_task 50 \
-    --seed 7 --precision fp32 --float32_matmul_precision highest \
-    --control_mode relative --chunk_size 12 --num_open_loop_steps 12 --num_steps_wait 10 \
-    --env_img_res 256 --mujoco_gl osmesa --pyopengl_platform osmesa \
-    --save_video false \
-    --result_json_path "$SPIKE_HEAD_RUN/evaluation/final_2000/$SPIKE_SUITE.json" \
-    --log_path "$SPIKE_HEAD_RUN/evaluation/final_2000/$SPIKE_SUITE.log" || break
-done
-```
+这不是LR衰减。没有按loss提前转换、早停或自动选择T；后续改T或LR应另记实验版本。
 
-本例依赖已配置的LIBERO/OSMesa环境，使用初态0–49，不用评估轨迹调BN或权重。每套均成功完成后，按四份JSON的成功数/总回合数相加计算overall；只有全部四套完成才能标记最终2,000回合结果。
+## EMA与评测
 
-## 7. 已部署实验的位置与允许操作
+每组成功完成训练并保存最终checkpoint后，用自己的训练数据128×16刷新EMA BN，optimizer更新为0。用[现有EMA与评测入口](../experiments/libero/README.md#best-a-eval)，替换本组checkpoint前缀与最终步数；不借用其他组权重、不重做已完成刷新。渐进组最终必须global_step32000、alpha1、head T8。
 
-路径均相对于对应服务器的 `/data/Minko/experiments/spike-turbovla/libero`：
+新A、A−WTA、①②③的已发布结果为四套各500。④⑤及当前⑥/minimal-cross/渐进组协议仅Long500：评测命令只选 `--task_suite_name libero_10 --num_trials_per_task 50`，10任务固定初态0—49。其余协议为seed7、FP32/highest、TF32off、legacy/corrected、relative、chunk/open-loop12、wait10、env256、binary gripper不归一化、OSMesa、不录视频。
 
-| 组别 | 节点 / 原GPU | 运行目录 | 当前阶段 |
-| --- | --- | --- | --- |
-| 新A | node42 / 2,3,5,6 | `fusionA_turbovla_base_20260912` | 训练与评测已完成 |
-| Spike FFN | node43 / 原0–3 | `fusionA_heads_4plus4_20260912/ffn` | 训练与评测已完成 |
-| 逐维 WTA | node43 / 4,5 | `fusionA_fullspike_state8_pair_20260912/perdim` | 训练中，已有评测等待器 |
-| 多阈值 WTA | node43 / 6,7 | `fusionA_fullspike_state8_pair_20260912/multithreshold` | 训练中，已有评测等待器 |
-| Shiftmax＋逐维 | node43 / 0,1,2,3 | `fusionA_shiftmax_state8_20260913/perdim` | 训练中，已有评测等待器 |
+Long-only不能产生四套overall。旧逐维WTA、多阈值WTA评测已取消，旧Deep已停止，错误的minimal-cross ANN回退组被替代；本次发布不重启它们。
 
-当前允许只读查看各根的 `status.json`、`training/train.log`、`training/checkpoints`、`evaluation/status.json` 和结果。原WTA两组维持每组2卡，不恢复已取消的扩卡提议；不得重复启动、抢卡、重置GPU、自动重试或恢复旧Deep。node42释放的卡没有自动分配权限。通过node43访问node42只用于读取新A结果，不使用node41。
+## 代码与验证范围
 
-```bash
-# 当前三组只读状态；不会启动或终止任何任务
-for SPIKE_EXISTING_RUN in \
-  /data/Minko/experiments/spike-turbovla/libero/fusionA_fullspike_state8_pair_20260912/perdim \
-  /data/Minko/experiments/spike-turbovla/libero/fusionA_fullspike_state8_pair_20260912/multithreshold \
-  /data/Minko/experiments/spike-turbovla/libero/fusionA_shiftmax_state8_20260913/perdim; do
-  sed -n '1,180p' "$SPIKE_EXISTING_RUN/status.json"
-  sed -n '1,100p' "$SPIKE_EXISTING_RUN/evaluation/status.json"
-done
-```
+[来源记录](code_provenance_20260918.md)列出实际训练快照与发布文件。核心head实现直接来自这些快照，共享配置、构造器、parser和训练日程进行了合并，保留旧SDSA population-repair字段及默认值。
 
-GitHub中的统一入口读取可移植配方；服务器已有的 `run_arm.py` / `run_eval_after_training.py` 继续读取各自固定的 `source_snapshot`。发布不移动这些目录、不覆盖运行参数，也不把控制器、依赖缓存、checkpoint或视频加入Git。新动作头核心来自实际训练快照；旧SDSA状态群体修复接口和默认值继续保留，避免破坏历史模型。
+CPU回归测试覆盖真实完整action head、公开配方的实际parser、渐进端点和checkpoint buffer；它不代替GPU容量测试、全模型训练或rollout，也不承诺发布合并后的新运行bitwise复现历史成绩。训练数据、私人权重、服务器编排与凭据不发布。

@@ -66,6 +66,7 @@ class InteractionConfig:
     cross_timesteps: int = 4
     cross_gradient_checkpointing: bool = True
     projection_gradient_checkpointing: bool = False
+    text_attention_routing: str = "wta"
     wta_text_topk: int = 3
     wta_vision_topk: int = 8
     wta_surrogate_temperature: float = 1.0
@@ -77,6 +78,8 @@ class InteractionConfig:
 @dataclass
 class ActionHeadConfig:
     head_type: str = "ann"
+    ann_fraction: float = 0.8
+    transition_fraction: float = 0.05
     continuous_state: bool = False
     spike_state_encoding: str = "perdim_plif"
     spike_timesteps: int = 4
@@ -153,6 +156,18 @@ class TurboVLAConfig:
             raise ValueError("spike_wta attention requires the full spike_wta backbone")
         if self.interaction.text_only_spike_projections and self.interaction.backbone_type != "spike_text_only":
             raise ValueError("text_only_spike_projections applies only to spike_text_only")
+        if self.interaction.text_attention_routing not in {"wta", "sdsa"}:
+            raise ValueError("text_attention_routing must be wta or sdsa")
+        if self.interaction.text_attention_routing != "wta" and self.interaction.backbone_type != "spike_text_only":
+            raise ValueError("The text routing ablation applies only to spike_text_only")
+        if self.action.head_type in {"minimal_cross_wta", "progressive_full_wta"}:
+            if self.interaction.backbone_type != "spike_text_only" or self.action.num_state_tokens != 2:
+                raise ValueError("A-shaped heads require spike_text_only and two state tokens")
+            if self.action.spike_timesteps < 1 or self.vision.compute_precision != "fp32":
+                raise ValueError("A-shaped spike heads require positive T and FP32 vision")
+        if self.action.head_type == "progressive_full_wta":
+            if not (0 <= self.action.ann_fraction < 1 and 0 < self.action.transition_fraction <= 1-self.action.ann_fraction):
+                raise ValueError("Invalid ANN/transition fractions")
         if self.interaction.backbone_type == "spike_text_only":
             if self.interaction.cross_attention_type != "spike_sdsa":
                 raise ValueError("spike_text_only preserves the original spike_sdsa Cross")
@@ -186,12 +201,11 @@ class TurboVLAConfig:
             raise ValueError("interaction.compute_precision must be fp32 or bf16_autocast")
         if self.action.action_dim < 1 or self.action.state_dim < 1 or self.action.horizon < 1:
             raise ValueError("action dimensions and horizon must be positive")
-        if self.action.head_type not in {
-            "ann", "spike_sdsa", "hybrid_spike_ffn", "deep_spike_wta",
-            "full_spike_state8_wta", "full_spike_state8_shiftmax",
-        }:
+        if self.action.head_type not in {"ann", "spike_sdsa", "minimal_cross_wta", "progressive_full_wta", "hybrid_spike_ffn", "deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn"}:
             raise ValueError("Unknown action head type")
-        if self.action.continuous_state and self.action.head_type not in {"spike_sdsa", "deep_spike_wta"}:
+        coordinate_heads = {"full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn"}
+        coordinate_ann = self.action.head_type in coordinate_heads and self.action.spike_state_encoding == "perdim_ann"
+        if self.action.continuous_state and self.action.head_type not in {"spike_sdsa", "deep_spike_wta"} and not coordinate_ann:
             raise ValueError("continuous_state applies to the spike-body action heads")
         if self.action.head_type == "spike_sdsa":
             if self.action.spike_state_population < 0:
@@ -214,17 +228,19 @@ class TurboVLAConfig:
                 raise ValueError("Deep WTA preserves A's upstream fusion and continuous state")
             if self.action.spike_timesteps < 1 or self.vision.compute_precision != "fp32":
                 raise ValueError("Deep WTA requires positive neuron time and FP32 vision")
-        if self.action.head_type in {"full_spike_state8_wta", "full_spike_state8_shiftmax"}:
-            if self.interaction.backbone_type != "spike_text_only" or self.action.continuous_state:
-                raise ValueError("Coordinate action heads preserve A fusion and require event-driven state")
+        if self.action.head_type in coordinate_heads:
+            if self.interaction.backbone_type != "spike_text_only":
+                raise ValueError("Coordinate state heads preserve A's spike_text_only fusion")
+            if self.action.continuous_state != coordinate_ann:
+                raise ValueError("perdim_ann requires continuous_state; event encodings must leave it disabled")
             if self.action.num_state_tokens != self.action.state_dim:
-                raise ValueError("Coordinate action heads require one token per state coordinate")
-            if self.action.spike_state_encoding not in {"perdim_plif", "multithreshold"}:
+                raise ValueError("Full state WTA requires one token per state coordinate")
+            if self.action.spike_state_encoding not in {"perdim_plif", "multithreshold", "project_then_plif", "perdim_ann"}:
                 raise ValueError("Unknown coordinate event encoding")
             if self.action.spike_state_population < 1 or self.action.spike_state_population_range <= 0:
                 raise ValueError("Population bin count and range must be positive")
             if self.action.spike_timesteps < 1 or self.vision.compute_precision != "fp32":
-                raise ValueError("Coordinate action heads require positive neuron time and FP32 vision")
+                raise ValueError("Full state WTA requires positive neuron time and FP32 vision")
 
     @property
     def sentence_mask_version(self) -> str:

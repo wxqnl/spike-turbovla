@@ -52,7 +52,7 @@ def action_head_arguments(options):
     chosen.warmup_steps = recipe["warmup_steps"]
     chosen.lr_schedule_steps = recipe["max_steps"]
     chosen.save_steps = common["save_steps"]
-    chosen.extra_save_steps = common["extra_save_steps"]
+    chosen.extra_save_steps = recipe.get("extra_save_steps", common["extra_save_steps"])
     chosen.log_freq = common["log_freq"]
     chosen.num_workers = common["num_workers_per_rank"]
     chosen.vision_gradient_checkpointing = recipe["vision_gradient_checkpointing"]
@@ -72,6 +72,9 @@ def action_head_arguments(options):
             "--spike_state_encoding", recipe["state_encoding"],
             "--spike_state_population_range", str(recipe["state_population_range"]),
         ]
+    arguments += ["--text_attention_routing", recipe.get("text_attention_routing", "wta")]
+    if recipe.get("continuous_state", False):
+        arguments.append("--continuous_state")
     return arguments
 
 

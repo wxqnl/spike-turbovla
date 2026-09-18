@@ -1,8 +1,12 @@
 """Eight coordinate-local state tokens feeding the existing signed WTA head.
 
-Both encoders emit signed unit events before the first learned projection.
+The original encoders emit events before the first learned projection.
 The per-dimension arm uses a PLIF neuron per coordinate; the population arm
 uses K staggered fixed thresholds per coordinate at each of T neuron steps.
+project_then_plif sends each continuous coordinate through that same learned
+projection first; the existing hidden PLIF remains the first spike boundary.
+perdim_ann keeps both coordinate projections and norms but replaces hidden
+PLIF with GELU. It computes continuous state tokens once per observation.
 Every step receives all eight standardized coordinates, never an 8/T slice.
 Current norms, membranes, residuals and final robot actions remain continuous.
 """
@@ -20,7 +24,7 @@ from .spike_action_head import SpikeTurboVLAActionHead
 
 
 class CoordinateEventProjection(nn.Module):
-    """Independent event-to-current weights for each state coordinate."""
+    """Independent coordinate-local weights for event or continuous inputs."""
 
     def __init__(self, coordinates, in_features, out_features):
         super().__init__()
@@ -61,22 +65,40 @@ class CoordinateSpikeStateProjection(nn.Module):
         self.position = nn.Parameter(torch.zeros(1, config.state_dim, hidden_dim))
         self.hidden_norm = TokenCurrentNorm(config.state_hidden_dim, eps=interaction.spike_norm_eps)
         self.output_norm = TokenCurrentNorm(hidden_dim, eps=interaction.spike_norm_eps)
-        self.hidden_spike = BipolarPLIF()
+        if self.encoding == "perdim_ann":
+            self.hidden_activation = nn.GELU()
+        else:
+            self.hidden_spike = BipolarPLIF()
         if self.encoding == "perdim_plif":
             self.input_spike = BipolarPLIF()
-        else:
+        elif self.encoding == "multithreshold":
             self.population = CoordinatePopulationEncoder(
                 bins, config.spike_timesteps, config.spike_state_population_range,
             )
+        elif self.encoding not in {"project_then_plif", "perdim_ann"}:
+            raise ValueError(f"Unknown coordinate state encoding: {self.encoding}")
+
+    def forward(self, current):
+        if self.encoding != "perdim_ann":
+            raise RuntimeError("Spiking state encoders require forward_step and caller-owned membranes")
+        hidden = self.input_projection(current[..., None])
+        hidden = self.hidden_activation(self.hidden_norm(hidden))
+        return self.output_norm(self.output_projection(hidden) + self.position)
 
     def forward_step(self, current, state, t):
+        if self.encoding == "perdim_ann":
+            return self(current)
         # The dataset has already applied fixed per-coordinate training stats.
         # Do not normalize a scalar with LayerNorm or mix coordinate statistics.
         if self.encoding == "perdim_plif":
-            events, state["input"] = self.input_spike(current[..., None], state.get("input"))
+            projection_input, state["input"] = self.input_spike(current[..., None], state.get("input"))
+        elif self.encoding == "multithreshold":
+            projection_input = self.population(current, t)
         else:
-            events = self.population(current, t)
-        hidden = self.input_projection(events)
+            # Preserve the scalar amplitude until its learned 1 -> 256 embedding.
+            # No unused input-neuron parameters or input membrane are retained.
+            projection_input = current[..., None]
+        hidden = self.input_projection(projection_input)
         spikes, state["hidden"] = self.hidden_spike(self.hidden_norm(hidden), state.get("hidden"))
         return self.output_norm(self.output_projection(spikes) + self.position)
 

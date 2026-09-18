@@ -108,6 +108,25 @@ class MultiWinnerAttention(nn.Module):
         return _MultiWinner.apply(scores, allowed, min(self.topk, scores.shape[-1]), self.temperature)
 
 
+class SpikeDotProductAttention(nn.Module):
+    """Unscaled signed-spike QK routing without top-k or softmax.
+
+    Preserves WTA's padding/sentence masks and silent-query/key guards.
+    Autograd differentiates the dot products directly; the surrounding PLIF
+    surrogate is unchanged. There is no WTA surrogate in this branch.
+    """
+
+    def forward(self, scores, allowed, query_spikes, key_spikes):
+        if allowed.dtype != torch.bool or scores.ndim != 4:
+            raise ValueError("Spike dot-product attention requires 4D scores and a boolean mask")
+        if allowed.ndim == 3:
+            allowed = allowed[:, None]
+        allowed = allowed.expand_as(scores)
+        allowed = allowed & query_spikes.detach().ne(0).any(-1, keepdim=True)
+        allowed = allowed & key_spikes.detach().ne(0).any(-1).unsqueeze(-2)
+        return scores.masked_fill(~allowed, 0.0)
+
+
 class MaskedTemporalBatchNorm(nn.Module):
     """Mask-aware, time-indexed BN for directly trained spiking currents.
 
