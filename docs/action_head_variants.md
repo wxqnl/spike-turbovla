@@ -2,6 +2,10 @@
 
 更新：2026-09-18。结果见[根README](../README.md)与[结果JSON](results/libero_20260918.json)。以下命令仅用于新建实验，不操作已有训练或评测。
 
+[按得分查对应配置与代码](score_configurations.md)
+
+<a id="variant-six"></a>
+
 ## 统一入口
 
 入口为 `python -m experiments.libero.train_action_head --variant NAME`，读取[配方JSON](../experiments/libero/configs/action_head_variants.json)。先用 `--dry-run` 查看展开参数；正式训练要求 `--approve_training`、匹配的torchrun进程数，以及代码目录外尚不存在的输出目录。它不自动运行EMA刷新或评测。
@@ -65,6 +69,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.run \
 
 统一入口仅发布fresh配方，明确拒绝resume；恢复已有实验必须使用其原控制器或经过核对的底层训练命令。以上示例不是服务器队列命令，不会替代现有控制器。
 
+<a id="minimal-cross-bsmax"></a>
+
 ## minimal-cross BSmax的历史分段配方
 
 当前在训组并非上表fresh 4×32运行到80000：用户在自身step20保存后改为4×96，从这个唯一前段checkpoint恢复model、optimizer、scheduler和EMA。未落盘的小batch步数未计入续训预算，数据迭代器/RNG不是bitwise延续。
@@ -76,6 +82,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.run \
 - checkpoint前缀为 `spike_a_minimal_crosswta_bsmax`，保存step40、每1000与最终；step20链接仅是自身前段恢复点。
 
 本次收录该头的真实实现与上述恢复协议，不把BS96运行伪装为fresh 4×96，也不提供会自动复制私人断点或启动旧控制器的脚本。代码和公共初始化足够新建独立实验，但复现这次历史轨迹还需自己的前段完整断点与明确的全状态恢复流程。
+
+<a id="progressive-fullwta"></a>
 
 ## 渐进全头：日程与T
 

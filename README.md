@@ -8,7 +8,7 @@
 
 | Spatial | Object | Goal | Long（libero_10） | Overall | 成功 / 总回合 |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 95.00%（475/500） | 95.40%（477/500） | 96.60%（483/500） | 82.40%（412/500） | **92.35%** | **1847/2000** |
+| [95.00%（475/500）](docs/score_configurations.md#a_base) | [95.40%（477/500）](docs/score_configurations.md#a_base) | [96.60%（483/500）](docs/score_configurations.md#a_base) | [82.40%（412/500）](docs/score_configurations.md#a_base) | [92.35%](docs/score_configurations.md#a_base) | **1847/2000** |
 
 训练为 **4 卡 × 每卡 32 × 累积 1，global batch 128，80,000 步**，共 10,240,000 次样本曝光；warmup 10,000 步。评测使用训练数据 128 × 16 刷新 BN 后的 EMA，FP32 / highest、TF32 关闭，40 个任务和整体均正常退出。
 
@@ -65,20 +65,24 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.run \
 
 GitHub 发布的是代码和结果记录，**没有上传已训练策略或训练数据**。读者按上述入口与公共资产独立训练；历史 50k A 的 91.05% 是另一次实验。
 
+<a id="current-results"></a>
+
 ## 实验结果与代码（2026-09-18）
+
+**点击下表的版本名或任一得分，即可直达这次得分对应的配置、训练预算、评测协议与代码链接。**
 
 新 A 仍是已完成四套评测的最佳记录。下表来自各实验既有最终摘要；本次仅整理结果和发布代码，没有重跑训练或评测。
 
 | 版本 | Spatial | Object | Goal | Long（libero_10） | Overall |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 新 A（80k，ANN动作头） | 95.00%（475/500） | 95.40%（477/500） | 96.60%（483/500） | 82.40%（412/500） | 92.35%（1847/2000） |
-| A−WTA（文本SDSA式点积） | 90.20%（451/500） | 95.60%（478/500） | 96.20%（481/500） | 78.60%（393/500） | 90.15%（1803/2000） |
-| 旧 FFN-only | 79.40%（397/500） | 91.40%（457/500） | 82.20%（411/500） | 52.60%（263/500） | 76.40%（1528/2000） |
-| ① 原始Shiftmax＋逐维 | 91.20%（456/500） | 97.20%（486/500） | 84.80%（424/500） | 61.40%（307/500） | 83.65%（1673/2000） |
-| ② 连续attention入口＋脉冲FFN | 86.60%（433/500） | 89.80%（449/500） | 80.60%（403/500） | 52.80%（264/500） | 77.45%（1549/2000） |
-| ③ 连续attention入口＋ANN FFN | 90.00%（450/500） | 97.40%（487/500） | 84.00%（420/500） | 60.40%（302/500） | 82.95%（1659/2000） |
-| ④ 入口PLIF＋ANN FFN | — | — | — | 66.60%（333/500） | —（仅Long） |
-| ⑤ 状态先投影后PLIF＋脉冲FFN | — | — | — | 56.60%（283/500） | —（仅Long） |
+| [新 A（80k，ANN动作头）](docs/score_configurations.md#a_base) | [95.00%（475/500）](docs/score_configurations.md#a_base) | [95.40%（477/500）](docs/score_configurations.md#a_base) | [96.60%（483/500）](docs/score_configurations.md#a_base) | [82.40%（412/500）](docs/score_configurations.md#a_base) | [92.35%（1847/2000）](docs/score_configurations.md#a_base) |
+| [A−WTA（文本SDSA式点积）](docs/score_configurations.md#a_no_wta) | [90.20%（451/500）](docs/score_configurations.md#a_no_wta) | [95.60%（478/500）](docs/score_configurations.md#a_no_wta) | [96.20%（481/500）](docs/score_configurations.md#a_no_wta) | [78.60%（393/500）](docs/score_configurations.md#a_no_wta) | [90.15%（1803/2000）](docs/score_configurations.md#a_no_wta) |
+| [旧 FFN-only](docs/score_configurations.md#ffn_only) | [79.40%（397/500）](docs/score_configurations.md#ffn_only) | [91.40%（457/500）](docs/score_configurations.md#ffn_only) | [82.20%（411/500）](docs/score_configurations.md#ffn_only) | [52.60%（263/500）](docs/score_configurations.md#ffn_only) | [76.40%（1528/2000）](docs/score_configurations.md#ffn_only) |
+| [① 原始Shiftmax＋逐维](docs/score_configurations.md#shiftmax_perdim) | [91.20%（456/500）](docs/score_configurations.md#shiftmax_perdim) | [97.20%（486/500）](docs/score_configurations.md#shiftmax_perdim) | [84.80%（424/500）](docs/score_configurations.md#shiftmax_perdim) | [61.40%（307/500）](docs/score_configurations.md#shiftmax_perdim) | [83.65%（1673/2000）](docs/score_configurations.md#shiftmax_perdim) |
+| [② 连续attention入口＋脉冲FFN](docs/score_configurations.md#shiftmax_continuous_inputs) | [86.60%（433/500）](docs/score_configurations.md#shiftmax_continuous_inputs) | [89.80%（449/500）](docs/score_configurations.md#shiftmax_continuous_inputs) | [80.60%（403/500）](docs/score_configurations.md#shiftmax_continuous_inputs) | [52.80%（264/500）](docs/score_configurations.md#shiftmax_continuous_inputs) | [77.45%（1549/2000）](docs/score_configurations.md#shiftmax_continuous_inputs) |
+| [③ 连续attention入口＋ANN FFN](docs/score_configurations.md#shiftmax_continuous_inputs_ann_ffn) | [90.00%（450/500）](docs/score_configurations.md#shiftmax_continuous_inputs_ann_ffn) | [97.40%（487/500）](docs/score_configurations.md#shiftmax_continuous_inputs_ann_ffn) | [84.00%（420/500）](docs/score_configurations.md#shiftmax_continuous_inputs_ann_ffn) | [60.40%（302/500）](docs/score_configurations.md#shiftmax_continuous_inputs_ann_ffn) | [82.95%（1659/2000）](docs/score_configurations.md#shiftmax_continuous_inputs_ann_ffn) |
+| [④ 入口PLIF＋ANN FFN](docs/score_configurations.md#shiftmax_prelif_ann_ffn) | — | — | — | [66.60%（333/500）](docs/score_configurations.md#shiftmax_prelif_ann_ffn) | —（仅Long） |
+| [⑤ 状态先投影后PLIF＋脉冲FFN](docs/score_configurations.md#shiftmax_projectfirst) | — | — | — | [56.60%（283/500）](docs/score_configurations.md#shiftmax_projectfirst) | —（仅Long） |
 
 ④⑤只评Long各500回合，不能填成四套均分。A−WTA比新A的四套总分低2.20个百分点、Long低3.80个百分点；③比②四套高5.50个百分点；④比①Long高5.20个百分点；⑤比直接对照①Long低4.80个百分点。这些都是单训练seed的描述性差值，不代表统计显著。A与动作头系列的batch、更新次数不同，不按相同步数比较训练loss。
 
@@ -109,9 +113,9 @@ GitHub 发布的是代码和结果记录，**没有上传已训练策略或训�
 
 | 实验 | 已完成更新 / 目标 | 累计样本曝光 | 状态 |
 | --- | ---: | ---: | --- |
-| ⑥ | 25,940 / 26,667 | 9,960,960 | 训练中，尚无Long成绩 |
-| minimal-cross BS96续训 | 8,164 / 26,680 | 3,129,856 | 训练中，尚无Long成绩 |
-| 渐进全头 T8 | 7,276 / 32,000 | 2,328,320 | alpha=0，ANN阶段，尚无Long成绩 |
+| [⑥配置](docs/action_head_variants.md#variant-six) | 25,940 / 26,667 | 9,960,960 | 训练中，尚无Long成绩 |
+| [minimal-cross BS96续训配置](docs/action_head_variants.md#minimal-cross-bsmax) | 8,164 / 26,680 | 3,129,856 | 训练中，尚无Long成绩 |
+| [渐进全头 T8配置](docs/action_head_variants.md#progressive-fullwta) | 7,276 / 32,000 | 2,328,320 | alpha=0，ANN阶段，尚无Long成绩 |
 
 新A和A−WTA为global128/80,000步；①—⑥为global384/26,667步（10,240,128样本）；渐进组为global320/32,000步（10,240,000样本）。minimal-cross当前BSmax组从自身前段step20完整恢复：前20步global128，后26,660步global384，总样本数为10,240,000；累计公式为 `2560 + (step-20)*384`，不能按 `step*384` 算。
 
@@ -127,17 +131,19 @@ GitHub 发布的是代码和结果记录，**没有上传已训练策略或训�
 
 统一入口只训练，不自动EMA或eval。发布代码保留历史兼容接口；服务器控制器、GPU绑定、依赖缓存、数据、checkpoint和视频不加入Git。不会覆盖任何现有运行目录。
 
+<a id="historical-results"></a>
+
 ## 历史五版 LIBERO 完整结果
 
 以下保留 2026-09-11 发布的历史结果。“+ Spike Cross（新版）”是旧 A 的 50k 运行，当前基线为上面的新 A 80k。每版四套 40 个任务，每任务 50 次，共 2,000 回合；所有任务和整体均正常退出。
 
 | 项目 | 仅 Vision spike | + SmoothSpike（校准版） | + Spike Cross（旧版） | + Spike Cross（新版） | + Spike Action Head |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Spatial | 90.6% | 90.2% | 91.6% | 95.4% | 80.0% |
-| Object | 93.8% | 93.0% | 97.6% | 99.4% | 84.8% |
-| Goal | 92.4% | 95.4% | 95.0% | 94.2% | 66.6% |
-| Long | 78.6% | 76.4% | 79.4% | 75.2% | 45.4% |
-| Overall | 88.85% | 88.75% | 90.90% | 91.05% | 69.20% |
+| Spatial | [90.6%](docs/score_configurations.md#historical-vision70k) | [90.2%](docs/score_configurations.md#historical-smoothspike_calibrated) | [91.6%](docs/score_configurations.md#historical-cross50k_high) | [95.4%](docs/score_configurations.md#historical-A) | [80.0%](docs/score_configurations.md#historical-AA) |
+| Object | [93.8%](docs/score_configurations.md#historical-vision70k) | [93.0%](docs/score_configurations.md#historical-smoothspike_calibrated) | [97.6%](docs/score_configurations.md#historical-cross50k_high) | [99.4%](docs/score_configurations.md#historical-A) | [84.8%](docs/score_configurations.md#historical-AA) |
+| Goal | [92.4%](docs/score_configurations.md#historical-vision70k) | [95.4%](docs/score_configurations.md#historical-smoothspike_calibrated) | [95.0%](docs/score_configurations.md#historical-cross50k_high) | [94.2%](docs/score_configurations.md#historical-A) | [66.6%](docs/score_configurations.md#historical-AA) |
+| Long | [78.6%](docs/score_configurations.md#historical-vision70k) | [76.4%](docs/score_configurations.md#historical-smoothspike_calibrated) | [79.4%](docs/score_configurations.md#historical-cross50k_high) | [75.2%](docs/score_configurations.md#historical-A) | [45.4%](docs/score_configurations.md#historical-AA) |
+| Overall | [88.85%](docs/score_configurations.md#historical-vision70k) | [88.75%](docs/score_configurations.md#historical-smoothspike_calibrated) | [90.90%](docs/score_configurations.md#historical-cross50k_high) | [91.05%](docs/score_configurations.md#historical-A) | [69.20%](docs/score_configurations.md#historical-AA) |
 | 成功 / 总回合 | 1777/2000 | 1775/2000 | 1818/2000 | 1821/2000 | 1384/2000 |
 | 策略训练步数 | 70,000 | 70k 基座 + 文本投影校准 | 50,000 | 50,000 | 18,750 |
 | GPU 数 | 3 | 沿用基座 | 3 | 2 | 8 |
@@ -149,7 +155,7 @@ GitHub 发布的是代码和结果记录，**没有上传已训练策略或训�
 - SmoothSpike 校准版继承 Vision 70k EMA，只有文本投影校准，没有新增策略训练。新运行 `--preset vision_text` 不会自动得到这个历史模型。
 - 新版 Spike Cross 在前 5,000 步用每卡 96、累积 2，之后完整恢复训练并改为每卡 192、累积 1；全程 global batch 384。Spike Action Head 基础版为 8 × 128 × 18,750，和新版 Spike Cross 一样有 19.20M 样本曝光，但 batch 与更新次数不同。
 - 新版 Spike Cross 比旧 Cross 高 0.15 个百分点；这组结果不支持显著提升或严格单模块因果结论。各版训练历史、mask 和数值策略差异见完整记录。
-- 完整 WTA 融合为 **85.15%**；Spike Action Head 状态修复加 1,875 步续训为 **73.70%**。两者列在补充表，不替代主表中的旧 Cross 或 Spike Action Head 基础版。Spike Action Head v2 只有未通过门槛的离线筛选，没有新的完整成功率。
+- 完整 WTA 融合为 [85.15%](docs/score_configurations.md#historical-B)；Spike Action Head 状态修复加 1,875 步续训为 [73.70%](docs/score_configurations.md#historical-AA_statefix_1875)。两者列在补充表，不替代主表中的旧 Cross 或 Spike Action Head 基础版。Spike Action Head v2 只有未通过门槛的离线筛选，没有新的完整成功率。
 
 [完整结果、训练配置和协议](docs/results.md) · [逐任务结果数据](docs/results/libero_20260911.json) · [架构边界](docs/architecture.md) · [脉冲融合与动作头启动说明](docs/training_variants.md)
 
