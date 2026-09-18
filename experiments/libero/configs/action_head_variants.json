@@ -215,7 +215,7 @@
       "source_run": "fusionA_shiftmax_state8_20260913/perdim"
     },
     "a_no_wta": {
-      "label": "A−WTA：六层文本改 signed-spike 点积",
+      "label": "A-no-WTA：六层文本改 signed-spike 点积",
       "head_type": "ann",
       "world_size": 4,
       "batch_per_gpu": 32,

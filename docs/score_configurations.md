@@ -6,9 +6,9 @@ README中的版本名和每个成功率均直达本页的对应实验。每节�
 
 ## 近期实验共同设置
 
-以下新A、A−WTA、旧FFN-only及①—⑤共用评测：seed7，每任务50固定初态0—49；FP32/highest、CUDA/cuDNN TF32关闭、legacy sentence / corrected head mask、relative、chunk/open-loop12、wait10、env256、二值夹爪不归一化、OSMesa、无视频。每组自身EMA仅用训练数据128×16刷新BN，optimizer更新为0。完整四套为2000回合，Long-only为500。
+以下新A、A-no-WTA、旧FFN-only及①—⑤共用评测：seed7，每任务50固定初态0—49；FP32/highest、CUDA/cuDNN TF32关闭、legacy sentence / corrected head mask、relative、chunk/open-loop12、wait10、env256、二值夹爪不归一化、OSMesa、无视频。每组自身EMA仅用训练数据128×16刷新BN，optimizer更新为0。完整四套为2000回合，Long-only为500。
 
-新A、A−WTA及①—⑤训练：seed42，AdamW(.9,.95)/eps1e-8/wd1e-10/clip1/EMA.999，vision LR1e-5、其他5e-5；warmup后恒定（min_lr_ratio=1），不是WSD。四套no-noops LeRobot数据；L1+.1 featureKD+.1 actionKD，textKD0；仅文本骨干冻结，其余七组联合训练。旧FFN-only另见自身分段记录，不能套用未核实的统一fresh配方。
+新A、A-no-WTA及①—⑤训练：seed42，AdamW(.9,.95)/eps1e-8/wd1e-10/clip1/EMA.999，vision LR1e-5、其他5e-5；warmup后恒定（min_lr_ratio=1），不是WSD。四套no-noops LeRobot数据；L1+.1 featureKD+.1 actionKD，textKD0；仅文本骨干冻结，其余七组联合训练。旧FFN-only另见自身分段记录，不能套用未核实的统一fresh配方。
 
 [训练入口](../experiments/libero/train_action_head.py) · [训练与评测步骤](../experiments/libero/README.md#best-a-reproduce) · [模型组装](../turbovla/models/turbovla.py) · [训练器](../turbovla/training/trainer.py)
 
@@ -24,7 +24,7 @@ libero_spatial: 475/500=95.00%；libero_object: 477/500=95.40%；libero_goal: 48
 | --- | --- |
 | 状态 | ANN MLP，2-token |
 | 动作头 / 消融边界 | self/cross/FFN/readout全部ANN |
-| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A−WTA之外均保留文本Top3 WTA＋原SDSA Cross |
+| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A-no-WTA之外均保留文本Top3 WTA＋原SDSA Cross |
 | T | 上游T4；动作头为ANN，无独立spike积分T |
 | batch / 更新 / 样本 | 4×32，global128，acc1；80000步；10240000样本 |
 | warmup / LR | 10000步；vision1e-5、其他5e-5，warmup后恒定 |
@@ -38,7 +38,7 @@ libero_spatial: 475/500=95.00%；libero_object: 477/500=95.40%；libero_goal: 48
 
 <a id="a_no_wta"></a>
 
-## A−WTA（文本SDSA式点积）
+## A-no-WTA（文本SDSA式点积）
 
 libero_10: 393/500=78.60%；libero_spatial: 451/500=90.20%；libero_object: 478/500=95.60%；libero_goal: 481/500=96.20%。
 
@@ -48,7 +48,7 @@ libero_10: 393/500=78.60%；libero_spatial: 451/500=90.20%；libero_object: 478/
 | --- | --- |
 | 状态 | ANN MLP，2-token |
 | 动作头 / 消融边界 | action head同A；仅六层文本WTA改signed-spike点积 |
-| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A−WTA之外均保留文本Top3 WTA＋原SDSA Cross |
+| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A-no-WTA之外均保留文本Top3 WTA＋原SDSA Cross |
 | T | 上游T4；动作头为ANN，无独立spike积分T |
 | batch / 更新 / 样本 | 4×32，global128，acc1；80000步；10240000样本 |
 | warmup / LR | 10000步；vision1e-5、其他5e-5，warmup后恒定 |
@@ -72,7 +72,7 @@ libero_spatial: 397/500=79.40%；libero_object: 457/500=91.40%；libero_goal: 41
 | --- | --- |
 | 状态 | A的ANN状态，2-token |
 | 动作头 / 消融边界 | self/cross/readout为ANN，仅decoder FFN脉冲化 |
-| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A−WTA之外均保留文本Top3 WTA＋原SDSA Cross |
+| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A-no-WTA之外均保留文本Top3 WTA＋原SDSA Cross |
 | T | 上游T4；动作头spike分支T4 |
 | batch / 更新 / 样本 | 前1000步global128；之后9875步global1024；共10875步、10240000样本 |
 | 复现边界 | 历史分段训练，无统一fresh variant；不得将10875×1024当作本次样本预算 |
@@ -94,7 +94,7 @@ libero_spatial: 456/500=91.20%；libero_object: 486/500=97.20%；libero_goal: 42
 | --- | --- |
 | 状态 | perdim_plif，8-token |
 | 动作头 / 消融边界 | 入口PLIF；Q/K脉冲、V连续；Shiftmax；spike FFN/readout |
-| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A−WTA之外均保留文本Top3 WTA＋原SDSA Cross |
+| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A-no-WTA之外均保留文本Top3 WTA＋原SDSA Cross |
 | T | 上游T4；动作头spike分支T4 |
 | batch / 更新 / 样本 | 4×96，global384，acc1；26667步；10240128样本 |
 | warmup / LR | 1280000样本（CLI 3334步）；vision1e-5、其他5e-5，warmup后恒定 |
@@ -118,7 +118,7 @@ libero_spatial: 433/500=86.60%；libero_object: 449/500=89.80%；libero_goal: 40
 | --- | --- |
 | 状态 | perdim_plif，8-token |
 | 动作头 / 消融边界 | 连续attention入口；Q/K脉冲、V连续；Shiftmax；spike FFN/readout |
-| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A−WTA之外均保留文本Top3 WTA＋原SDSA Cross |
+| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A-no-WTA之外均保留文本Top3 WTA＋原SDSA Cross |
 | T | 上游T4；动作头spike分支T4 |
 | batch / 更新 / 样本 | 4×96，global384，acc1；26667步；10240128样本 |
 | warmup / LR | 1280000样本（CLI 3334步）；vision1e-5、其他5e-5，warmup后恒定 |
@@ -142,7 +142,7 @@ libero_spatial: 450/500=90.00%；libero_object: 487/500=97.40%；libero_goal: 42
 | --- | --- |
 | 状态 | perdim_plif，8-token |
 | 动作头 / 消融边界 | 连续attention入口；Shiftmax；ANN FFN（ReLU/dropout0.1）；spike readout |
-| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A−WTA之外均保留文本Top3 WTA＋原SDSA Cross |
+| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A-no-WTA之外均保留文本Top3 WTA＋原SDSA Cross |
 | T | 上游T4；动作头spike分支T4 |
 | batch / 更新 / 样本 | 4×96，global384，acc1；26667步；10240128样本 |
 | warmup / LR | 1280000样本（CLI 3334步）；vision1e-5、其他5e-5，warmup后恒定 |
@@ -166,7 +166,7 @@ libero_10: 333/500=66.60%。
 | --- | --- |
 | 状态 | perdim_plif，8-token |
 | 动作头 / 消融边界 | 入口PLIF；Shiftmax；ANN FFN（ReLU/dropout0.1）；spike readout |
-| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A−WTA之外均保留文本Top3 WTA＋原SDSA Cross |
+| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A-no-WTA之外均保留文本Top3 WTA＋原SDSA Cross |
 | T | 上游T4；动作头spike分支T4 |
 | batch / 更新 / 样本 | 4×96，global384，acc1；26667步；10240128样本 |
 | warmup / LR | 1280000样本（CLI 3334步）；vision1e-5、其他5e-5，warmup后恒定 |
@@ -190,7 +190,7 @@ libero_10: 283/500=56.60%。
 | --- | --- |
 | 状态 | project_then_plif，8-token；先坐标Linear1→256，再hidden PLIF |
 | 动作头 / 消融边界 | 入口PLIF；Shiftmax；spike FFN/readout |
-| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A−WTA之外均保留文本Top3 WTA＋原SDSA Cross |
+| 上游 | SDT-V3＋SmoothSpike T4＋spike_text_only；A-no-WTA之外均保留文本Top3 WTA＋原SDSA Cross |
 | T | 上游T4；动作头spike分支T4 |
 | batch / 更新 / 样本 | 4×96，global384，acc1；26667步；10240128样本 |
 | warmup / LR | 1280000样本（CLI 3334步）；vision1e-5、其他5e-5，warmup后恒定 |

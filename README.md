@@ -76,7 +76,7 @@ GitHub 发布的是代码和结果记录，**没有上传已训练策略或训�
 | 版本 | Spatial | Object | Goal | Long（libero_10） | Overall |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | [新 A（80k，ANN动作头）](docs/score_configurations.md#a_base) | [95.00%（475/500）](docs/score_configurations.md#a_base) | [95.40%（477/500）](docs/score_configurations.md#a_base) | [96.60%（483/500）](docs/score_configurations.md#a_base) | [82.40%（412/500）](docs/score_configurations.md#a_base) | [92.35%（1847/2000）](docs/score_configurations.md#a_base) |
-| [A−WTA（文本SDSA式点积）](docs/score_configurations.md#a_no_wta) | [90.20%（451/500）](docs/score_configurations.md#a_no_wta) | [95.60%（478/500）](docs/score_configurations.md#a_no_wta) | [96.20%（481/500）](docs/score_configurations.md#a_no_wta) | [78.60%（393/500）](docs/score_configurations.md#a_no_wta) | [90.15%（1803/2000）](docs/score_configurations.md#a_no_wta) |
+| [A-no-WTA（文本SDSA式点积）](docs/score_configurations.md#a_no_wta) | [90.20%（451/500）](docs/score_configurations.md#a_no_wta) | [95.60%（478/500）](docs/score_configurations.md#a_no_wta) | [96.20%（481/500）](docs/score_configurations.md#a_no_wta) | [78.60%（393/500）](docs/score_configurations.md#a_no_wta) | [90.15%（1803/2000）](docs/score_configurations.md#a_no_wta) |
 | [旧 FFN-only](docs/score_configurations.md#ffn_only) | [79.40%（397/500）](docs/score_configurations.md#ffn_only) | [91.40%（457/500）](docs/score_configurations.md#ffn_only) | [82.20%（411/500）](docs/score_configurations.md#ffn_only) | [52.60%（263/500）](docs/score_configurations.md#ffn_only) | [76.40%（1528/2000）](docs/score_configurations.md#ffn_only) |
 | [① 原始Shiftmax＋逐维](docs/score_configurations.md#shiftmax_perdim) | [91.20%（456/500）](docs/score_configurations.md#shiftmax_perdim) | [97.20%（486/500）](docs/score_configurations.md#shiftmax_perdim) | [84.80%（424/500）](docs/score_configurations.md#shiftmax_perdim) | [61.40%（307/500）](docs/score_configurations.md#shiftmax_perdim) | [83.65%（1673/2000）](docs/score_configurations.md#shiftmax_perdim) |
 | [② 连续attention入口＋脉冲FFN](docs/score_configurations.md#shiftmax_continuous_inputs) | [86.60%（433/500）](docs/score_configurations.md#shiftmax_continuous_inputs) | [89.80%（449/500）](docs/score_configurations.md#shiftmax_continuous_inputs) | [80.60%（403/500）](docs/score_configurations.md#shiftmax_continuous_inputs) | [52.80%（264/500）](docs/score_configurations.md#shiftmax_continuous_inputs) | [77.45%（1549/2000）](docs/score_configurations.md#shiftmax_continuous_inputs) |
@@ -84,16 +84,16 @@ GitHub 发布的是代码和结果记录，**没有上传已训练策略或训�
 | [④ 入口PLIF＋ANN FFN](docs/score_configurations.md#shiftmax_prelif_ann_ffn) | — | — | — | [66.60%（333/500）](docs/score_configurations.md#shiftmax_prelif_ann_ffn) | —（仅Long） |
 | [⑤ 状态先投影后PLIF＋脉冲FFN](docs/score_configurations.md#shiftmax_projectfirst) | — | — | — | [56.60%（283/500）](docs/score_configurations.md#shiftmax_projectfirst) | —（仅Long） |
 
-④⑤只评Long各500回合，不能填成四套均分。A−WTA比新A的四套总分低2.20个百分点、Long低3.80个百分点；③比②四套高5.50个百分点；④比①Long高5.20个百分点；⑤比直接对照①Long低4.80个百分点。这些都是单训练seed的描述性差值，不代表统计显著。A与动作头系列的batch、更新次数不同，不按相同步数比较训练loss。
+④⑤只评Long各500回合，不能填成四套均分。A-no-WTA比新A的四套总分低2.20个百分点、Long低3.80个百分点；③比②四套高5.50个百分点；④比①Long高5.20个百分点；⑤比直接对照①Long低4.80个百分点。这些都是单训练seed的描述性差值，不代表统计显著。A与动作头系列的batch、更新次数不同，不按相同步数比较训练loss。
 
 ### 结构与实现对应
 
-除A−WTA外，下列变体保持新A上游六层文本Top3 WTA和原SDSA Cross；固定的是结构与公共初始化，只有文本骨干冻结，其余七组联合训练。
+除A-no-WTA外，下列变体保持新A上游六层文本Top3 WTA和原SDSA Cross；固定的是结构与公共初始化，只有文本骨干冻结，其余七组联合训练。
 
 | 版本 / 统一入口的 `--variant` | 状态 | action attention入口 | action FFN | 实现 |
 | --- | --- | --- | --- | --- |
 | 新 A / `a_base` | ANN 2-token | ANN | ANN | [action_head.py](turbovla/models/action_head.py) |
-| A−WTA / `a_no_wta` | 同A | 同A | 同A | [wta_fusion.py](turbovla/models/components/wta_fusion.py)、[wta_operators.py](turbovla/models/components/wta_operators.py)；仅六层文本路由改signed-spike点积 |
+| A-no-WTA / `a_no_wta` | 同A | 同A | 同A | [wta_fusion.py](turbovla/models/components/wta_fusion.py)、[wta_operators.py](turbovla/models/components/wta_operators.py)；仅六层文本路由改signed-spike点积 |
 | ① / `shiftmax_perdim` | 逐维PLIF，8-token | 投影前PLIF | spike | [full_state_action_head.py](turbovla/models/full_state_action_head.py)、[shiftmax_action_head.py](turbovla/models/shiftmax_action_head.py) |
 | ② / `shiftmax_continuous_inputs` | 同① | 连续入口 | spike | 同上 |
 | ③ / `shiftmax_continuous_inputs_ann_ffn` | 同① | 连续入口 | ANN | 同上 |
@@ -117,7 +117,7 @@ GitHub 发布的是代码和结果记录，**没有上传已训练策略或训�
 | [minimal-cross BS96续训配置](docs/action_head_variants.md#minimal-cross-bsmax) | 8,164 / 26,680 | 3,129,856 | 训练中，尚无Long成绩 |
 | [渐进全头 T8配置](docs/action_head_variants.md#progressive-fullwta) | 7,276 / 32,000 | 2,328,320 | alpha=0，ANN阶段，尚无Long成绩 |
 
-新A和A−WTA为global128/80,000步；①—⑥为global384/26,667步（10,240,128样本）；渐进组为global320/32,000步（10,240,000样本）。minimal-cross当前BSmax组从自身前段step20完整恢复：前20步global128，后26,660步global384，总样本数为10,240,000；累计公式为 `2560 + (step-20)*384`，不能按 `step*384` 算。
+新A和A-no-WTA为global128/80,000步；①—⑥为global384/26,667步（10,240,128样本）；渐进组为global320/32,000步（10,240,000样本）。minimal-cross当前BSmax组从自身前段step20完整恢复：前20步global128，后26,660步global384，总样本数为10,240,000；累计公式为 `2560 + (step-20)*384`，不能按 `step*384` 算。
 
 所有这些配方使用视觉LR1e-5、其余5e-5，不随batch放大。warmup从峰值约0.1倍线性升到峰值，之后保持恒定（`min_lr_ratio=1`）；新A warmup10,000步，其余按约1,280,000样本对齐。**不是WSD，也没有有效的cosine LR衰减。** 渐进组半余弦变化的是head混合系数alpha，不是学习率。
 
@@ -170,7 +170,7 @@ GitHub 发布的是代码和结果记录，**没有上传已训练策略或训�
 | 新版 Spike Cross：`train_spike_text_only` | SDT-V3 19M | SmoothSpike T4 | 脉冲投影、旧 Spike Cross、脉冲文本块 | ANN |
 | 新版 Spike Cross + Spike Action Head：`train_spike_aa` | SDT-V3 19M | SmoothSpike T4 | 同新版 Spike Cross | 脉冲状态投影 / ACT |
 | 完整 WTA 融合版：`train_wta` | SDT-V3 19M | SmoothSpike T4 | 完整 Signed WTA 融合 | ANN |
-| 当前变体：`train_action_head` | SDT-V3 19M | SmoothSpike T4 | 新 A 上游；A−WTA单独替换文本路由 | ANN基线 / WTA / Shiftmax①—⑥ / minimal-cross / 渐进全头 |
+| 当前变体：`train_action_head` | SDT-V3 19M | SmoothSpike T4 | 新 A 上游；A-no-WTA单独替换文本路由 | ANN基线 / WTA / Shiftmax①—⑥ / minimal-cross / 渐进全头 |
 
 前四项通过 `python -m experiments.libero.run_experiment` 选择；脉冲融合与动作头使用独立入口，支持 `--dry-run` 预览，需要显式批准训练。各脉冲融合版本完成训练后先用训练数据刷新 EMA 的 BN，再评估。[历史入口](docs/training_variants.md) · [当前 Action Head 入口](docs/action_head_variants.md)
 

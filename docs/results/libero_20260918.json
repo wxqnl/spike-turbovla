@@ -121,7 +121,7 @@
     },
     {
       "id": "a_no_wta",
-      "label": "A−WTA（文本SDSA式点积）",
+      "label": "A-no-WTA（文本SDSA式点积）",
       "status": "completed",
       "scope": "four_suites_2000",
       "source_summary": "fusionA_no_wta_turbovla_base_20260916/evaluation_full2000/summary.json",
