@@ -1,16 +1,17 @@
-# 2026-09-18 代码来源与发布范围
+# 代码来源与发布范围（更新于 2026-09-23）
 
 这次提交只修改独立发布仓库；不改已部署source_snapshot、训练参数、控制器或评测协议。没有重新训练、刷新EMA或重新评测已完成实验。
 
 | 发布文件 / 功能 | 实际源码快照标识 |
 | --- | --- |
-| `full_state_action_head.py`、`shiftmax_action_head.py`；②—⑥的入口、FFN和state选择 | `fusionA_shiftmax_ann_state8_continuous_inputs_spike_ffn_20260916/source_snapshot` |
+| `full_state_action_head.py`、`shiftmax_action_head.py`；早期Shiftmax消融与Spike-Driven VLA的入口、FFN和state选择 | `fusionA_shiftmax_ann_state8_continuous_inputs_spike_ffn_20260916/source_snapshot` |
 | `minimal_cross_wta_head.py` | `fusionA_base_minimal_crosswta_bsmax_20260918/source_snapshot`，不是已停止的ANN回退组 |
 | `progressive_full_wta_head.py` | `fusionA_progressive_fullwta_t8_20260918/source_snapshot` |
 | 文本SDSA路由 `wta_fusion.py`、`wta_operators.py` | `fusionA_no_wta_turbovla_base_20260916/source_snapshot` |
 | `configuration.py`、`turbovla.py`、`trainer.py` | 将以上分支接入发布版，同时保留历史头类型、population-repair字段及默认值 |
 | `train_action_head.py`、`configs/action_head_variants.json` | 基于各实验实际配方整理的可移植fresh入口；不包含服务器控制器 |
 | `docs/results/libero_20260918.json` | 各组既有最终summary，去掉私人权重位置；在训进度为22:24快照 |
+| `light_augmentation.py`、`libero_lerobot.py` 与 `train_mixed.py` 的训练专用增强接线 | `fusionA_six_lightaug_bs256_40k_20260922/source_snapshot` |
 
 核心head和文本路由文件与来源逐字节比较；不用文件摘要替代源码检查。共享接口合并保持旧字段，避免用较窄快照覆盖历史兼容代码。当前渐进T8照实发布；讨论中的T4与WSD没有混入该版本。
 

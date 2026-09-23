@@ -21,6 +21,7 @@ def parse_args_with_mixed_suite_stats():
         default="bf16_autocast",
         choices=["fp32", "bf16", "bf16_autocast"],
     )
+    parser.add_argument("--libero_light_augmentation", action="store_true")
     parser.add_argument("--dataset_dirs", type=str)
     parser.add_argument(
         "--dataset_format",
@@ -64,6 +65,7 @@ def parse_args_with_mixed_suite_stats():
     if missing:
         parser.error(f"the following arguments are required: {', '.join(missing)}")
 
+    args.libero_light_augmentation = known.libero_light_augmentation
     args.dinov3_precision = known.dinov3_precision
     args.dataset_dirs = known.dataset_dirs
     args.dataset_format = known.dataset_format
@@ -117,6 +119,7 @@ class MixedSuiteTrainingDataset:
             if active_args.lerobot_gripper_convention is None:
                 raise ValueError("LeRobot input requires an explicit --lerobot_gripper_convention")
             kwargs["gripper_convention"] = active_args.lerobot_gripper_convention
+            kwargs["light_augmentation"] = active_args.libero_light_augmentation
         if int(os.environ.get("RANK", "0")) == 0:
             print(f"dataset_format={dataset_format}", flush=True)
         return dataset_cls(

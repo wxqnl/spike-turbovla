@@ -74,6 +74,7 @@ class ReleaseVariants(unittest.TestCase):
                 self.assertEqual(args.num_state_tokens, recipe["num_state_tokens"])
                 self.assertEqual(args.continuous_state, recipe.get("continuous_state", False))
                 self.assertEqual(args.text_attention_routing, recipe.get("text_attention_routing", "wta"))
+                self.assertEqual(args.libero_light_augmentation, recipe.get("libero_light_augmentation", False))
                 self.assertEqual(args.min_lr_ratio, 1)
                 self.assertEqual(args.warmup_steps, recipe["warmup_steps"])
                 self.assertEqual(args.lr_warmup_samples, recipe["lr_warmup_samples"])
@@ -108,7 +109,7 @@ class ReleaseVariants(unittest.TestCase):
                 self.assertTrue(gradients)
                 self.assertTrue(all(torch.isfinite(g).all() for g in gradients))
                 self.assertTrue(any(g.abs().sum() > 0 for g in gradients))
-                if name == "shiftmax_ann_state":
+                if name in {"spike_driven", "spike_driven_lightaug"}:
                     self.assertFalse(any(isinstance(m, BipolarPLIF) for m in head.state_projection.modules()))
                 if name == "minimal_cross_wta":
                     self.assertFalse(any(isinstance(m, BipolarPLIF) for m in head.state_projection.modules()))

@@ -1,5 +1,7 @@
 # 得分对应配置
 
+主推 Spike-Driven VLA 的 LIBERO 轻量增强版和公共 MT50 40k EMA 成绩见[当前 benchmark 与代码](spike_driven.md)。本页保留早期 ANN 基线与逐模块消融的历史对照，不以旧实验编号命名主推架构。
+
 README中的版本名和每个成功率均直达本页的对应实验。每节区分历史实际运行与可复现入口；未完成实验没有最终分数。
 
 <a id="current-common"></a>

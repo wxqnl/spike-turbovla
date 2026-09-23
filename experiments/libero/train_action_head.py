@@ -23,12 +23,14 @@ RECIPES = json.loads(CONFIG_PATH.read_text())
 
 
 def configure_parser(parser):
-    parser.add_argument("--variant", choices=tuple(RECIPES["variants"]), required=True,
+    names = (*RECIPES["variants"], *RECIPES.get("legacy_variant_aliases", {}))
+    parser.add_argument("--variant", choices=names, required=True,
                         help="Select the A baseline or one fixed action-head recipe")
 
 
 def action_head_arguments(options):
-    recipe = RECIPES["variants"][options.variant]
+    variant = RECIPES.get("legacy_variant_aliases", {}).get(options.variant, options.variant)
+    recipe = RECIPES["variants"][variant]
     common = RECIPES["common_training"]
     actual = (options.effective_world_size, options.batch_size,
               options.grad_accum_steps, options.max_steps)
@@ -75,6 +77,8 @@ def action_head_arguments(options):
     arguments += ["--text_attention_routing", recipe.get("text_attention_routing", "wta")]
     if recipe.get("continuous_state", False):
         arguments.append("--continuous_state")
+    if recipe.get("libero_light_augmentation", False):
+        arguments.append("--libero_light_augmentation")
     return arguments
 
 

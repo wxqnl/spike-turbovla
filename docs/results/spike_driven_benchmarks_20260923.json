@@ -1,0 +1,51 @@
+{
+  "updated_at": "2026-09-23",
+  "model": "Spike-Driven VLA",
+  "note": "Selected completed runs for the promoted architecture; different benchmarks are not directly comparable. No rollout or weight load was repeated for this publication.",
+  "libero": {
+    "run": "fusionA_six_lightaug_bs256_40k_20260922",
+    "source_summary": "evaluation_40k_ema_full2000/summary.json",
+    "checkpoint_weights": "training-data-refreshed EMA",
+    "training": {
+      "steps": 40000,
+      "global_batch": 256,
+      "sample_exposures": 10240000,
+      "rgb_augmentation": "independent integer translation in [-4,4] pixels with edge padding; brightness and contrast factors in [0.9,1.1], training only",
+      "ema_refresh": "128 batches x 16 training samples, 0 optimizer updates"
+    },
+    "evaluation": {
+      "seed": 7,
+      "episodes": 2000,
+      "successes": 1841,
+      "success_rate": 0.9205,
+      "spatial": {"successes": 452, "episodes": 500},
+      "object": {"successes": 493, "episodes": 500},
+      "goal": {"successes": 486, "episodes": 500},
+      "long": {"successes": 410, "episodes": 500},
+      "overall_exit_code": 0
+    }
+  },
+  "metaworld_mt50_public_corner2": {
+    "run": "mt50_public_corner2_six_bs256_25k_20260920",
+    "source_summary": "evaluation_public2500_40k_ema/summary.json",
+    "checkpoint_weights": "training-data-refreshed EMA",
+    "training": {
+      "steps": 40000,
+      "global_batch": 256,
+      "sample_exposures": 10240000,
+      "ema_refresh": "128 batches x 16 training samples, 0 optimizer updates"
+    },
+    "evaluation": {
+      "policy_seed": 7,
+      "tasks": 50,
+      "episodes_per_task": 50,
+      "episodes": 2500,
+      "successes": 1897,
+      "success_rate": 0.7588,
+      "view": "corner2 only",
+      "open_loop_actions": 12,
+      "max_native_steps": 500,
+      "overall_exit_code": 0
+    }
+  }
+}

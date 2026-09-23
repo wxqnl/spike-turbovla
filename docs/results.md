@@ -1,6 +1,6 @@
 # LIBERO 实验结果
 
-更新：2026-09-18。近期完整结果及Long-only成绩以[README结果表](../README.md#current-results)和[2026-09-18结果JSON](results/libero_20260918.json)为准。**[每个得分对应的配置与代码](score_configurations.md)**可直接点击查看。下文保留历史五版记录，不能用旧的“训练中”状态覆盖新结果。
+更新：2026-09-23。主推 Spike-Driven VLA 的当前 LIBERO 与公共 MT50 benchmark 见[首页](../README.md#current-results)及[专页](spike_driven.md)。本页和[2026-09-18结果JSON](results/libero_20260918.json)保留历史档案；旧的“训练中”快照不代表当前状态。**[历史得分对应配置与代码](score_configurations.md)**可直接点击查看。
 
 <a id="historical-results"></a>
 

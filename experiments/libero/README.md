@@ -1,20 +1,20 @@
 # LIBERO 复现说明
 
-更新：2026-09-15。想复现当前最好结果，请先使用本页的 **新 A（Vision＋Text＋Cross 脉冲化、完整 ANN 动作头），92.35%** 流程。入口固定为 `train_action_head --variant a_base`；后面的旧 hybrid 预设、`train_wta` 和 Spike Action Head 是其他实验。
+更新：2026-09-23。主推的 Spike-Driven VLA 与轻量增强 40k 配方见[专页](../../docs/spike_driven.md)，入口为 `train_action_head --variant spike_driven_lightaug`。本页下方保留历史 ANN 动作头 80k 的复现流程，不要把它当成主推脉冲动作头。
 
 <a id="best-a-reproduce"></a>
 
-## 当前最佳版本：新 A，92.35%
+## 历史 ANN 动作头参考：新 A，92.35%
 
-已完成四套各 500 回合、总计 2,000 回合：Spatial 95.00%、Object 95.40%、Goal 96.60%、Long 82.40%，总计 **1847/2000 = 92.35%**。[根 README](../../README.md)保留各版本的完整结果。
+已完成四套各 500 回合、总计 2,000 回合：Spatial 95.00%、Object 95.40%、Goal 96.60%、Long 82.40%，总计 **1847/2000 = 92.35%**。它是 ANN 参考，不是 Spike-Driven VLA 的分数；[历史配置档案](../../docs/score_configurations.md)保留各版本对照。
 
 ### 2026-09-18 实验更新
 
 [点击得分查对应配置与实现](../../docs/score_configurations.md)
 
-完整四套结果：新A **92.35%**，A-no-WTA **90.15%**，① **83.65%**，② **77.45%**，③ **82.95%**；④仅Long **66.6%（333/500）**，⑤仅Long **56.6%（283/500）**。⑥、minimal-cross BS96续训及渐进全头组尚无最终评测结果（运行快照见根README）。
+以下为 2026-09-18 的历史档案。Spike-Driven VLA 的轻量增强版后来完成四套 **1841/2000 = 92.05%**；当前主展示只列该架构已完成的 LIBERO 与公共 MT50 结果。
 
-②—⑥、A-no-WTA、minimal-cross与渐进头的实现现已收录。[变体配方与入口](../../docs/action_head_variants.md)区分fresh复现和minimal-cross分段续训；[机器可读结果](../../docs/results/libero_20260918.json)区分四套2000与Long500，不对未完成实验补分。
+Spike-Driven VLA、早期逐模块消融、A-no-WTA、minimal-cross 与渐进头的实现均已收录。[变体配方与入口](../../docs/action_head_variants.md)区分 fresh 复现和分段续训；[旧结果档案](../../docs/results/libero_20260918.json)保留当时的历史快照。
 
 新A的warmup为10,000步，从峰值约0.1倍升到峰值；之后视觉1e-5、其余5e-5恒定到80,000步，`min_lr_ratio=1`。下述80k入口不使用WSD，也没有实际cosine衰减。渐进组的半余弦alpha是动作输出混合日程，与LR不同。
 

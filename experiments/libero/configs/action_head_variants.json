@@ -1,6 +1,10 @@
 {
   "category": "Action Head 修改类",
-  "version": "2026-09-18",
+  "version": "2026-09-23",
+  "recommended_variant": "spike_driven_lightaug",
+  "legacy_variant_aliases": {
+    "shiftmax_ann_state": "spike_driven"
+  },
   "fixed_upstream": {
     "vision": "sdtv3_19m",
     "vision_image_size": 224,
@@ -312,8 +316,8 @@
       "source_run": "fusionA_shiftmax_projectfirst_state8_spike_ffn_20260916/perdim",
       "continuous_state": false
     },
-    "shiftmax_ann_state": {
-      "label": "⑥ ANN逐维状态＋连续attention入口＋脉冲FFN",
+    "spike_driven": {
+      "label": "Spike-Driven VLA：逐维ANN状态、连续attention入口与脉冲Shiftmax动作头",
       "head_type": "full_spike_state8_shiftmax_continuous_inputs",
       "world_size": 4,
       "batch_per_gpu": 96,
@@ -331,6 +335,27 @@
       "checkpoint_prefix": "spike_shiftmax_ann_state8_continuous_inputs_spike_ffn",
       "source_run": "fusionA_shiftmax_ann_state8_continuous_inputs_spike_ffn_20260916/perdim",
       "continuous_state": true
+    },
+    "spike_driven_lightaug": {
+      "label": "Spike-Driven VLA：轻量RGB增强训练",
+      "head_type": "full_spike_state8_shiftmax_continuous_inputs",
+      "world_size": 8,
+      "batch_per_gpu": 32,
+      "global_batch": 256,
+      "max_steps": 40000,
+      "warmup_steps": 5000,
+      "lr_warmup_samples": 1280000,
+      "num_state_tokens": 8,
+      "state_encoding": "perdim_ann",
+      "state_population": 32,
+      "state_population_range": 4,
+      "head_routing": "shiftmax",
+      "value_path": "normalized_projection_current",
+      "vision_gradient_checkpointing": false,
+      "checkpoint_prefix": "spike_driven_lightaug",
+      "source_run": "fusionA_six_lightaug_bs256_40k_20260922",
+      "continuous_state": true,
+      "libero_light_augmentation": true
     },
     "minimal_cross_wta": {
       "label": "minimal-cross WTA：原4×32前段配方（不是BSmax续训）",

@@ -1,10 +1,10 @@
 # LIBERO 变体：代码、配方与复现
 
-更新：2026-09-18。结果见[根README](../README.md)与[结果JSON](results/libero_20260918.json)。以下命令仅用于新建实验，不操作已有训练或评测。
+更新：2026-09-23。结果见[根README](../README.md)与[结果JSON](results/libero_20260918.json)。以下命令仅用于新建实验，不操作已有训练或评测。
 
 [按得分查对应配置与代码](score_configurations.md)
 
-<a id="variant-six"></a>
+主推架构请先看 [Spike-Driven VLA](spike_driven.md)。
 
 ## 统一入口
 
@@ -21,11 +21,12 @@
 | `shiftmax_continuous_inputs_ann_ffn` | ③ 连续attention入口＋ANN FFN | 4×96 | 同上 | 四套82.95% |
 | `shiftmax_prelif_ann_ffn` | ④ 入口PLIF＋ANN FFN | 4×96 | 同上 | 仅Long66.6% |
 | `shiftmax_projectfirst` | ⑤ 状态先投影后PLIF＋入口PLIF＋spike FFN | 4×96 | 同上 | 仅Long56.6% |
-| `shiftmax_ann_state` | ⑥ ANN逐维状态＋连续attention入口＋spike FFN | 4×96 | 同上 | 未完成 |
+| `spike_driven` | Spike-Driven VLA，原始未增强配方 | 4×96 | 26667 / 3334步 | 四套89.65% |
+| `spike_driven_lightaug` | Spike-Driven VLA，主推轻量RGB增强配方 | 8×32 | 40000 / 5000步 | 四套92.05% |
 | `minimal_cross_wta` | A形状，只改action cross内部；原小batch前段 | 4×32 | 80000 / 10000步 | 被BSmax续训替代；不是当前BS96配方 |
 | `progressive_fullwta_t8` | 共享参数渐进全头WTA，2-token | 4×80 | 32000 / 1280000样本 | 未完成 |
 
-①—⑥为8个逐坐标state token、head T4、3层decoder/hidden256/heads8/FFN2048/readout256→512→512→7、horizon12。A、A-no-WTA和minimal-cross为A原ANN 2-token状态MLP。最初两种WTA也是8-token/T4，但前向为二值Top3/Top8，Shiftmax系列保留连续V。
+①—⑤与Spike-Driven VLA均为8个逐坐标state token、head T4、3层decoder/hidden256/heads8/FFN2048/readout256→512→512→7、horizon12。A、A-no-WTA和minimal-cross为A原ANN 2-token状态MLP。最初两种WTA也是8-token/T4，但前向为二值Top3/Top8，Shiftmax系列保留连续V。
 
 上游共用SDT-V3、SmoothSpike T4、脉冲投影和spike_text_only融合；除A-no-WTA文本路由外，六层文本Top3 WTA和SDSA Cross保持不变。文本骨干冻结，其余七组联合训练；固定结构不等于冻结上游权重。
 
@@ -35,7 +36,7 @@ Fresh配方使用公共组件和同方案公共文本投影初始化，不加载
 
 固定seed42、FP32/highest、CUDA与cuDNN TF32关闭；AdamW(0.9,0.95)、eps1e-8、weight decay1e-10、clip1、EMA0.999。视觉LR1e-5、其余5e-5，不随batch放大。warmup从峰值约0.1倍线性升到峰值，之后恒定，min_lr_ratio=1。样本warmup沿用128样本前瞻项。WSD与真正cosine LR衰减均未实施。
 
-A、A-no-WTA、minimal-cross和渐进组关闭vision activation checkpointing；①—⑥及两种逐维WTA开启。上游Cross开启、projection关闭；spike head保留重计算支持。原ANN头与minimal-cross继承ANN执行路径，没有额外head重计算包装。
+A、A-no-WTA、minimal-cross、渐进组及`spike_driven_lightaug`关闭vision activation checkpointing；①—⑤、`spike_driven`及两种逐维WTA开启。上游Cross开启、projection关闭；spike head保留重计算支持。原ANN头与minimal-cross继承ANN执行路径，没有额外head重计算包装。
 
 ## 新建实验示例
 
@@ -99,7 +100,7 @@ p=completed_updates/32000，p≤0.8时alpha=0，0.8<p<0.85时半余弦升到1，
 
 每组成功完成训练并保存最终checkpoint后，用自己的训练数据128×16刷新EMA BN，optimizer更新为0。用[现有EMA与评测入口](../experiments/libero/README.md#best-a-eval)，替换本组checkpoint前缀与最终步数；不借用其他组权重、不重做已完成刷新。渐进组最终必须global_step32000、alpha1、head T8。
 
-新A、A-no-WTA、①②③的已发布结果为四套各500。④⑤及当前⑥/minimal-cross/渐进组协议仅Long500：评测命令只选 `--task_suite_name libero_10 --num_trials_per_task 50`，10任务固定初态0—49。其余协议为seed7、FP32/highest、TF32off、legacy/corrected、relative、chunk/open-loop12、wait10、env256、binary gripper不归一化、OSMesa、不录视频。
+新A、A-no-WTA、①②③及Spike-Driven VLA均已有四套各500的完整结果。④⑤的已发布历史结果仅Long500；该口径的评测命令只选 `--task_suite_name libero_10 --num_trials_per_task 50`，10任务固定初态0—49。其余协议为seed7、FP32/highest、TF32off、legacy/corrected、relative、chunk/open-loop12、wait10、env256、binary gripper不归一化、OSMesa、不录视频。
 
 Long-only不能产生四套overall。旧逐维WTA、多阈值WTA评测已取消，旧Deep已停止，错误的minimal-cross ANN回退组被替代；本次发布不重启它们。
 

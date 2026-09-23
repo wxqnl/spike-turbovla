@@ -182,6 +182,7 @@ class LiberoMixedLeRobotDataset(LiberoRLDSDataset):
         vision_encoder_type: str = "dinov3",
         vision_image_size: int | None = None,
         enable_dinov3_teacher: bool = False,
+        light_augmentation: bool = False,
         **kwargs,
     ):
         del dataset_dir, args, kwargs
@@ -193,6 +194,9 @@ class LiberoMixedLeRobotDataset(LiberoRLDSDataset):
         if chunk_size <= 0:
             raise ValueError("chunk_size must be positive")
 
+        self.light_augmentation = bool(light_augmentation)
+        if self.light_augmentation and split != "train":
+            raise ValueError("Light augmentation is training-only")
         self.rank = int(rank)
         self.world_size = int(world_size)
         self.chunk_size = int(chunk_size)
@@ -404,7 +408,10 @@ class LiberoMixedLeRobotDataset(LiberoRLDSDataset):
         }
 
     def _process_image(self, image: np.ndarray) -> dict[str, torch.Tensor]:
-        # Share the peer RLDS preprocessing exactly, including teacher images.
+        # Augment once before the teacher and student normalization branches.
+        if self.light_augmentation:
+            from .light_augmentation import light_augment_rgb
+            image = light_augment_rgb(image)
         return self._process_image_pair(image)
 
     def _build_step_sample(self, episode_data: dict, step: int):
