@@ -32,7 +32,7 @@ libero_spatial: 475/500=95.00%；libero_object: 477/500=95.40%；libero_goal: 48
 | warmup / LR | 10000步；vision1e-5、其他5e-5，warmup后恒定 |
 | 初始化 | 公共组件fresh；无已训练A或probe权重。维护恢复等历史见原记录，不承诺RNG bitwise复现 |
 | 视觉重计算 | 关闭；上游Cross开启、projection关闭 |
-| 可执行配方 | [直接定位JSON中的 a_base](../experiments/libero/configs/action_head_variants.json#L119)；入口参数 `--variant a_base` |
+| 可执行配方 | [扩展配方中的 a_base](../experiments/libero/configs/extensions/action_head_variants.json)；入口参数 `--variant a_base` |
 | 实现代码 | [action_head.py](../turbovla/models/action_head.py) |
 | 结果记录 | [结果JSON](results/libero_20260918.json#L84)；相对来源 `fusionA_turbovla_base_20260912/evaluation/summary.json` |
 
@@ -56,7 +56,7 @@ libero_10: 393/500=78.60%；libero_spatial: 451/500=90.20%；libero_object: 478/
 | warmup / LR | 10000步；vision1e-5、其他5e-5，warmup后恒定 |
 | 初始化 | 公共组件fresh；无已训练A或probe权重。维护恢复等历史见原记录，不承诺RNG bitwise复现 |
 | 视觉重计算 | 关闭；上游Cross开启、projection关闭 |
-| 可执行配方 | [直接定位JSON中的 a_no_wta](../experiments/libero/configs/action_head_variants.json#L217)；入口参数 `--variant a_no_wta` |
+| 可执行配方 | [扩展配方中的 a_no_wta](../experiments/libero/configs/extensions/action_head_variants.json)；入口参数 `--variant a_no_wta` |
 | 实现代码 | [action_head.py](../turbovla/models/action_head.py) · [wta_fusion.py](../turbovla/models/components/wta_fusion.py) · [wta_operators.py](../turbovla/models/components/wta_operators.py) |
 | 结果记录 | [结果JSON](results/libero_20260918.json#L123)；相对来源 `fusionA_no_wta_turbovla_base_20260916/evaluation_full2000/summary.json` |
 
@@ -102,7 +102,7 @@ libero_spatial: 456/500=91.20%；libero_object: 486/500=97.20%；libero_goal: 42
 | warmup / LR | 1280000样本（CLI 3334步）；vision1e-5、其他5e-5，warmup后恒定 |
 | 初始化 | 公共组件fresh；无已训练A或probe权重。维护恢复等历史见原记录，不承诺RNG bitwise复现 |
 | 视觉重计算 | 开启；上游Cross开启、projection关闭 |
-| 可执行配方 | [直接定位JSON中的 shiftmax_perdim](../experiments/libero/configs/action_head_variants.json#L191)；入口参数 `--variant shiftmax_perdim` |
+| 可执行配方 | [扩展配方中的 shiftmax_perdim](../experiments/libero/configs/extensions/action_head_variants.json)；入口参数 `--variant shiftmax_perdim` |
 | 实现代码 | [full_state_action_head.py](../turbovla/models/full_state_action_head.py) · [shiftmax_action_head.py](../turbovla/models/shiftmax_action_head.py) |
 | 结果记录 | [结果JSON](results/libero_20260918.json#L201)；相对来源 `fusionA_shiftmax_state8_20260913/perdim/evaluation/summary.json` |
 
@@ -126,7 +126,7 @@ libero_spatial: 433/500=86.60%；libero_object: 449/500=89.80%；libero_goal: 40
 | warmup / LR | 1280000样本（CLI 3334步）；vision1e-5、其他5e-5，warmup后恒定 |
 | 初始化 | 公共组件fresh；无已训练A或probe权重。维护恢复等历史见原记录，不承诺RNG bitwise复现 |
 | 视觉重计算 | 开启；上游Cross开启、projection关闭 |
-| 可执行配方 | [直接定位JSON中的 shiftmax_continuous_inputs](../experiments/libero/configs/action_head_variants.json#L235)；入口参数 `--variant shiftmax_continuous_inputs` |
+| 可执行配方 | [扩展配方中的 shiftmax_continuous_inputs](../experiments/libero/configs/extensions/action_head_variants.json)；入口参数 `--variant shiftmax_continuous_inputs` |
 | 实现代码 | [full_state_action_head.py](../turbovla/models/full_state_action_head.py) · [shiftmax_action_head.py](../turbovla/models/shiftmax_action_head.py) |
 | 结果记录 | [结果JSON](results/libero_20260918.json#L240)；相对来源 `fusionA_shiftmax_continuous_inputs_state8_20260914/perdim/evaluation/summary.json` |
 
@@ -150,7 +150,7 @@ libero_spatial: 450/500=90.00%；libero_object: 487/500=97.40%；libero_goal: 42
 | warmup / LR | 1280000样本（CLI 3334步）；vision1e-5、其他5e-5，warmup后恒定 |
 | 初始化 | 公共组件fresh；无已训练A或probe权重。维护恢复等历史见原记录，不承诺RNG bitwise复现 |
 | 视觉重计算 | 开启；上游Cross开启、projection关闭 |
-| 可执行配方 | [直接定位JSON中的 shiftmax_continuous_inputs_ann_ffn](../experiments/libero/configs/action_head_variants.json#L255)；入口参数 `--variant shiftmax_continuous_inputs_ann_ffn` |
+| 可执行配方 | [扩展配方中的 shiftmax_continuous_inputs_ann_ffn](../experiments/libero/configs/extensions/action_head_variants.json)；入口参数 `--variant shiftmax_continuous_inputs_ann_ffn` |
 | 实现代码 | [full_state_action_head.py](../turbovla/models/full_state_action_head.py) · [shiftmax_action_head.py](../turbovla/models/shiftmax_action_head.py) |
 | 结果记录 | [结果JSON](results/libero_20260918.json#L279)；相对来源 `fusionA_shiftmax_continuous_inputs_ann_ffn_state8_20260914/perdim/evaluation/summary.json` |
 
@@ -174,7 +174,7 @@ libero_10: 333/500=66.60%。
 | warmup / LR | 1280000样本（CLI 3334步）；vision1e-5、其他5e-5，warmup后恒定 |
 | 初始化 | 公共组件fresh；无已训练A或probe权重。维护恢复等历史见原记录，不承诺RNG bitwise复现 |
 | 视觉重计算 | 开启；上游Cross开启、projection关闭 |
-| 可执行配方 | [直接定位JSON中的 shiftmax_prelif_ann_ffn](../experiments/libero/configs/action_head_variants.json#L275)；入口参数 `--variant shiftmax_prelif_ann_ffn` |
+| 可执行配方 | [扩展配方中的 shiftmax_prelif_ann_ffn](../experiments/libero/configs/extensions/action_head_variants.json)；入口参数 `--variant shiftmax_prelif_ann_ffn` |
 | 实现代码 | [full_state_action_head.py](../turbovla/models/full_state_action_head.py) · [shiftmax_action_head.py](../turbovla/models/shiftmax_action_head.py) |
 | 结果记录 | [结果JSON](results/libero_20260918.json#L318)；相对来源 `fusionA_shiftmax_prelif_ann_ffn_state8_20260915/perdim/evaluation_long/summary.json` |
 
@@ -198,7 +198,7 @@ libero_10: 283/500=56.60%。
 | warmup / LR | 1280000样本（CLI 3334步）；vision1e-5、其他5e-5，warmup后恒定 |
 | 初始化 | 公共组件fresh；无已训练A或probe权重。维护恢复等历史见原记录，不承诺RNG bitwise复现 |
 | 视觉重计算 | 开启；上游Cross开启、projection关闭 |
-| 可执行配方 | [直接定位JSON中的 shiftmax_projectfirst](../experiments/libero/configs/action_head_variants.json#L295)；入口参数 `--variant shiftmax_projectfirst` |
+| 可执行配方 | [扩展配方中的 shiftmax_projectfirst](../experiments/libero/configs/extensions/action_head_variants.json)；入口参数 `--variant shiftmax_projectfirst` |
 | 实现代码 | [full_state_action_head.py](../turbovla/models/full_state_action_head.py) · [shiftmax_action_head.py](../turbovla/models/shiftmax_action_head.py) |
 | 结果记录 | [结果JSON](results/libero_20260918.json#L342)；相对来源 `fusionA_shiftmax_projectfirst_state8_spike_ffn_20260916/perdim/evaluation_long/summary.json` |
 

@@ -13,11 +13,14 @@ from turbovla.models.full_state_action_head import FullStateSpikeActionHead
 from turbovla.models.shiftmax_action_head import FullStateShiftmaxActionHead
 from turbovla.models.minimal_cross_wta_head import MinimalCrossWTAActionHead
 from turbovla.models.progressive_full_wta_head import ProgressiveFullWTAHead
+from turbovla.models.extensions.minimal_cross_wta_head import MinimalCrossWTAActionHead as ExtensionMinimalCrossWTAActionHead
+from turbovla.models.extensions.progressive_full_wta_head import ProgressiveFullWTAHead as ExtensionProgressiveFullWTAHead
 from turbovla.models.components.wta_operators import BipolarPLIF, SpikeDotProductAttention
 from turbovla.training.train_mixed import parse_args_with_mixed_suite_stats
+from experiments.libero.train_action_head import RECIPES as RELEASE_RECIPES
 
 ROOT = Path(__file__).resolve().parents[1]
-RECIPES = json.loads((ROOT / "experiments/libero/configs/action_head_variants.json").read_text())["variants"]
+RECIPES = RELEASE_RECIPES["variants"]
 torch.set_num_threads(1)
 
 
@@ -51,6 +54,15 @@ def head_for(recipe):
 
 
 class ReleaseVariants(unittest.TestCase):
+    def test_extension_import_compatibility(self):
+        self.assertIs(MinimalCrossWTAActionHead, ExtensionMinimalCrossWTAActionHead)
+        self.assertIs(ProgressiveFullWTAHead, ExtensionProgressiveFullWTAHead)
+
+    def test_base_recipe_and_legacy_name_match(self):
+        self.assertEqual(RELEASE_RECIPES["legacy_variant_aliases"]["spike_driven_lightaug"], "spike-driven-vla")
+        self.assertEqual(RECIPES["spike-driven-vla"]["head_type"], "full_spike_state8_shiftmax_continuous_inputs")
+        self.assertEqual(RECIPES["spike-driven-vla"]["checkpoint_prefix"], "spike_driven_vla")
+
     def test_all_recipes_reach_real_training_parser(self):
         for name, recipe in RECIPES.items():
             with self.subTest(variant=name):
@@ -109,7 +121,7 @@ class ReleaseVariants(unittest.TestCase):
                 self.assertTrue(gradients)
                 self.assertTrue(all(torch.isfinite(g).all() for g in gradients))
                 self.assertTrue(any(g.abs().sum() > 0 for g in gradients))
-                if name in {"spike_driven", "spike_driven_lightaug"}:
+                if name in {"spike_driven", "spike-driven-vla"}:
                     self.assertFalse(any(isinstance(m, BipolarPLIF) for m in head.state_projection.modules()))
                 if name == "minimal_cross_wta":
                     self.assertFalse(any(isinstance(m, BipolarPLIF) for m in head.state_projection.modules()))

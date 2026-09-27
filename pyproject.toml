@@ -54,7 +54,7 @@ include = [
 ]
 
 [tool.setuptools.package-data]
-"experiments.libero" = ["configs/*.json"]
+"experiments.libero" = ["configs/*.json", "configs/extensions/*.json"]
 "experiments.robotwin" = ["configs/*.json", "configs/*.yaml", "evaluation/*.yml"]
 "starVLA.config" = ["deepseeds/*.yaml"]
 "third_party" = ["Spike-Driven-Transformer-V3/SDT_V3/Classification/Model_Base/models.py"]

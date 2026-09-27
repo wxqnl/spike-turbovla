@@ -1,12 +1,8 @@
-"""Fixed-upstream A baseline and coordinate action-head training recipes.
+"""LIBERO training entry for spike-driven-vla and archived extensions.
 
-Preview: python -m experiments.libero.train_action_head --variant perdim
-  --run_dir ... --vision_checkpoint ... --text_projection_init ...
-  --max_steps 26667 --batch_size 192 --grad_accum_steps 1
-  --dry-run --world-size 2
-
-Live training requires torchrun and --approve_training. This entry neither
-allocates GPUs nor queues evaluation; it never starts training during import.
+Use --variant spike-driven-vla for the base architecture. Legacy names remain
+accepted for checkpoint and command compatibility. Importing this module never
+starts training or evaluation.
 """
 from __future__ import annotations
 
@@ -18,14 +14,24 @@ from experiments.libero.settings import CODE
 from experiments.libero.train_spike_text_only import text_only_arguments
 from experiments.libero.train_wta import main as run_training
 
-CONFIG_PATH = Path(__file__).with_name("configs") / "action_head_variants.json"
-RECIPES = json.loads(CONFIG_PATH.read_text())
+CONFIG_DIR = Path(__file__).with_name("configs")
+SHARED = json.loads((CONFIG_DIR / "shared_training.json").read_text())
+BASE = json.loads((CONFIG_DIR / "spike_driven_vla.json").read_text())
+EXTENSIONS = json.loads((CONFIG_DIR / "extensions" / "action_head_variants.json").read_text())
+RECIPES = {
+    **SHARED,
+    "variants": {BASE["name"]: BASE["recipe"], **EXTENSIONS["variants"]},
+    "legacy_variant_aliases": {
+        "spike_driven_lightaug": BASE["name"],
+        "shiftmax_ann_state": "spike_driven",
+    },
+}
 
 
 def configure_parser(parser):
     names = (*RECIPES["variants"], *RECIPES.get("legacy_variant_aliases", {}))
     parser.add_argument("--variant", choices=names, required=True,
-                        help="Select the A baseline or one fixed action-head recipe")
+                        help="Select spike-driven-vla (base) or an extension recipe")
 
 
 def action_head_arguments(options):

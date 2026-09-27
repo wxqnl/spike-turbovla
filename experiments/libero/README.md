@@ -1,6 +1,6 @@
 # LIBERO 复现说明
 
-更新：2026-09-23。主推的 Spike-Driven VLA 与轻量增强 40k 配方见[专页](../../docs/spike_driven.md)，入口为 `train_action_head --variant spike_driven_lightaug`。本页下方保留历史 ANN 动作头 80k 的复现流程，不要把它当成主推脉冲动作头。
+更新：2026-09-27。项目唯一主推 base 为 [spike-driven-vla](../../docs/spike_driven.md)，入口是 `train_action_head --variant spike-driven-vla`。本页下方保留历史 ANN 动作头 80k 的复现流程。
 
 <a id="best-a-reproduce"></a>
 
@@ -23,7 +23,7 @@ Spike-Driven VLA、早期逐模块消融、A-no-WTA、minimal-cross 与渐进头
 | 内容 | 代码 / 配置 |
 | --- | --- |
 | 推荐训练入口 | [train_action_head.py](train_action_head.py)，选择 `--variant a_base` |
-| 固定训练配方 | [configs/action_head_variants.json](configs/action_head_variants.json) 的 `a_base` 与 `common_training` |
+| 固定训练配方 | [扩展配方](configs/extensions/action_head_variants.json) 的 `a_base` 与[公共训练设置](configs/shared_training.json) |
 | 新 A 的融合参数 | [train_spike_text_only.py](train_spike_text_only.py) 的 `text_only_arguments` |
 | 共享启动器 | [train_wta.py](train_wta.py) 的 `main`；由推荐入口覆盖参数后调用 |
 | 完整模型 / ANN 动作头 | [turbovla.py](../../turbovla/models/turbovla.py)、[action_head.py](../../turbovla/models/action_head.py) |

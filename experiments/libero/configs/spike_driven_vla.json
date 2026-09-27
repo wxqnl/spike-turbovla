@@ -1,0 +1,23 @@
+{
+  "name": "spike-driven-vla",
+  "recipe": {
+    "label": "spike-driven-vla base：轻量 RGB 增强训练",
+    "head_type": "full_spike_state8_shiftmax_continuous_inputs",
+    "world_size": 8,
+    "batch_per_gpu": 32,
+    "global_batch": 256,
+    "max_steps": 40000,
+    "warmup_steps": 5000,
+    "lr_warmup_samples": 1280000,
+    "num_state_tokens": 8,
+    "state_encoding": "perdim_ann",
+    "state_population": 32,
+    "state_population_range": 4,
+    "head_routing": "shiftmax",
+    "value_path": "normalized_projection_current",
+    "vision_gradient_checkpointing": false,
+    "checkpoint_prefix": "spike_driven_vla",
+    "continuous_state": true,
+    "libero_light_augmentation": true
+  }
+}

@@ -184,11 +184,11 @@ class TurboVLA(nn.Module):
                 if self.temporal_spike:
                     self.vision_language_interaction = TemporalSpikeInteraction(config.interaction)
         if config.action.head_type == "progressive_full_wta":
-            from .progressive_full_wta_head import ProgressiveFullWTAHead
+            from .extensions.progressive_full_wta_head import ProgressiveFullWTAHead
             with torch.random.fork_rng(devices=[]):
                 self.action_head = ProgressiveFullWTAHead(self.action_head, config.action, config.interaction)
         elif config.action.head_type == "minimal_cross_wta":
-            from .minimal_cross_wta_head import MinimalCrossWTAActionHead
+            from .extensions.minimal_cross_wta_head import MinimalCrossWTAActionHead
             with torch.random.fork_rng(devices=[]):
                 self.action_head = MinimalCrossWTAActionHead(
                     config.action, hidden_dim, config.interaction.nheads,
@@ -207,7 +207,7 @@ class TurboVLA(nn.Module):
                 self.action_head = head
 
         elif config.action.head_type == "hybrid_spike_ffn":
-            from .hybrid_action_head import HybridSpikeFFNActionHead
+            from .extensions.hybrid_action_head import HybridSpikeFFNActionHead
             with torch.random.fork_rng(devices=[]):
                 head = HybridSpikeFFNActionHead(
                     config.action, hidden_dim, config.interaction.nheads,

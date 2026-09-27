@@ -9,7 +9,7 @@
 | `progressive_full_wta_head.py` | `fusionA_progressive_fullwta_t8_20260918/source_snapshot` |
 | 文本SDSA路由 `wta_fusion.py`、`wta_operators.py` | `fusionA_no_wta_turbovla_base_20260916/source_snapshot` |
 | `configuration.py`、`turbovla.py`、`trainer.py` | 将以上分支接入发布版，同时保留历史头类型、population-repair字段及默认值 |
-| `train_action_head.py`、`configs/action_head_variants.json` | 基于各实验实际配方整理的可移植fresh入口；不包含服务器控制器 |
+| `train_action_head.py`、`configs/spike_driven_vla.json`、`configs/extensions/action_head_variants.json` | 主推 base 与历史扩展的可移植 fresh 配方；不包含服务器控制器 |
 | `docs/results/libero_20260918.json` | 各组既有最终summary，去掉私人权重位置；在训进度为22:24快照 |
 | `light_augmentation.py`、`libero_lerobot.py` 与 `train_mixed.py` 的训练专用增强接线 | `fusionA_six_lightaug_bs256_40k_20260922/source_snapshot` |
 

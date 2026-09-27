@@ -1,14 +1,14 @@
-# LIBERO 变体：代码、配方与复现
+# LIBERO 扩展与历史配方
 
 更新：2026-09-23。结果见[根README](../README.md)与[结果JSON](results/libero_20260918.json)。以下命令仅用于新建实验，不操作已有训练或评测。
 
 [按得分查对应配置与代码](score_configurations.md)
 
-主推架构请先看 [Spike-Driven VLA](spike_driven.md)。
+唯一主推 base 是 [spike-driven-vla](spike_driven.md)；本页其余配置属于扩展或消融。
 
 ## 统一入口
 
-入口为 `python -m experiments.libero.train_action_head --variant NAME`，读取[配方JSON](../experiments/libero/configs/action_head_variants.json)。先用 `--dry-run` 查看展开参数；正式训练要求 `--approve_training`、匹配的torchrun进程数，以及代码目录外尚不存在的输出目录。它不自动运行EMA刷新或评测。
+入口为 `python -m experiments.libero.train_action_head --variant NAME`，扩展配方在[此 JSON](../experiments/libero/configs/extensions/action_head_variants.json)，主推配方在[base JSON](../experiments/libero/configs/spike_driven_vla.json)。先用 `--dry-run` 查看展开参数；正式训练要求 `--approve_training`、匹配的torchrun进程数，以及代码目录外尚不存在的输出目录。它不自动运行EMA刷新或评测。
 
 | NAME | 对应实验 | rank × batch | steps / warmup | 评测记录 |
 | --- | --- | --- | --- | --- |
@@ -21,8 +21,8 @@
 | `shiftmax_continuous_inputs_ann_ffn` | ③ 连续attention入口＋ANN FFN | 4×96 | 同上 | 四套82.95% |
 | `shiftmax_prelif_ann_ffn` | ④ 入口PLIF＋ANN FFN | 4×96 | 同上 | 仅Long66.6% |
 | `shiftmax_projectfirst` | ⑤ 状态先投影后PLIF＋入口PLIF＋spike FFN | 4×96 | 同上 | 仅Long56.6% |
-| `spike_driven` | Spike-Driven VLA，原始未增强配方 | 4×96 | 26667 / 3334步 | 四套89.65% |
-| `spike_driven_lightaug` | Spike-Driven VLA，主推轻量RGB增强配方 | 8×32 | 40000 / 5000步 | 四套92.05% |
+| `spike_driven` | base 架构的早期未增强训练配方，仅作历史对照 | 4×96 | 26667 / 3334步 | 四套89.65% |
+| `spike-driven-vla` | 唯一主推 base，轻量RGB增强配方 | 8×32 | 40000 / 5000步 | 四套92.05% |
 | `minimal_cross_wta` | A形状，只改action cross内部；原小batch前段 | 4×32 | 80000 / 10000步 | 被BSmax续训替代；不是当前BS96配方 |
 | `progressive_fullwta_t8` | 共享参数渐进全头WTA，2-token | 4×80 | 32000 / 1280000样本 | 未完成 |
 
@@ -36,7 +36,7 @@ Fresh配方使用公共组件和同方案公共文本投影初始化，不加载
 
 固定seed42、FP32/highest、CUDA与cuDNN TF32关闭；AdamW(0.9,0.95)、eps1e-8、weight decay1e-10、clip1、EMA0.999。视觉LR1e-5、其余5e-5，不随batch放大。warmup从峰值约0.1倍线性升到峰值，之后恒定，min_lr_ratio=1。样本warmup沿用128样本前瞻项。WSD与真正cosine LR衰减均未实施。
 
-A、A-no-WTA、minimal-cross、渐进组及`spike_driven_lightaug`关闭vision activation checkpointing；①—⑤、`spike_driven`及两种逐维WTA开启。上游Cross开启、projection关闭；spike head保留重计算支持。原ANN头与minimal-cross继承ANN执行路径，没有额外head重计算包装。
+A、A-no-WTA、minimal-cross、渐进组及`spike-driven-vla`关闭vision activation checkpointing；①—⑤、`spike_driven`及两种逐维WTA开启。上游Cross开启、projection关闭；spike head保留重计算支持。原ANN头与minimal-cross继承ANN执行路径，没有额外head重计算包装。
 
 ## 新建实验示例
 

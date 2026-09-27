@@ -1,28 +1,21 @@
-# spike-turbovla
+# spike-driven-vla
 
-本仓库主推 **Spike-Driven VLA**：SDT-V3 与 SmoothSpike 上游、逐维 ANN 状态编码、连续 attention 输入，以及保留投影后脉冲 Q/K、Shiftmax、脉冲 FFN 和动作读出的混合架构。它不是全事件驱动实现，也没有在此宣称能耗收益。[结构与复现说明](docs/spike_driven.md)。
+`spike-driven-vla` 是本项目唯一主推的 base 架构。它结合 SDT-V3、SmoothSpike、文本 Top-3 WTA、SDSA Cross，以及逐维连续状态输入和带脉冲 Q/K、Shiftmax、脉冲 FFN 的动作头。[结构说明](docs/spike_driven.md)。其余组合是扩展或消融。
 
-<a id="current-results"></a>
+## 代码导航
 
-## 主推架构的已完成 benchmark
+| 内容 | 位置 |
+| --- | --- |
+| base 模型组装 | [turbovla/models/turbovla.py](turbovla/models/turbovla.py) |
+| base 动作头、Shiftmax | [full_state_action_head.py](turbovla/models/full_state_action_head.py)、[shiftmax_action_head.py](turbovla/models/shiftmax_action_head.py) |
+| LIBERO base 配方 | [spike_driven_vla.json](experiments/libero/configs/spike_driven_vla.json) |
+| 其他组合 | [扩展模块](turbovla/models/extensions/)、[扩展配方](experiments/libero/configs/extensions/action_head_variants.json) |
 
-| Benchmark | 设置 | 成绩 |
-| --- | --- | ---: |
-| LIBERO 四套、40 任务 × 50 回合 | 轻量 RGB 增强训练，40k、global batch 256、自身训练数据刷新 EMA | **1841/2000 = 92.05%** |
-| 公共 Meta-World MT50、单 corner2 视角、50 任务 × 50 回合 | 累计 40k、global batch 256、自身训练数据刷新 EMA | **1897/2500 = 75.88%** |
+LIBERO 新实验入口：`python -m experiments.libero.train_action_head --variant spike-driven-vla`。旧名 `spike_driven_lightaug` 仍解析为同一训练配方；新运行的 checkpoint 文件前缀为 `spike_driven_vla`，已有文件与内部模型字段不改，以保持加载兼容。训练入口不自动运行 EMA 刷新或评测。公共 MT50 使用相同架构的单视角适配；本仓库不包含其独立训练/评测适配器。
 
-LIBERO 分套为 Spatial 90.4%、Object 98.6%、Goal 97.2%、Long 82.0%。这两项来自不同基准，不混成单一平均分；均为完整评测的实际结果。[逐项配置和来源](docs/spike_driven.md) · [机器可读结果](docs/results/spike_driven_benchmarks_20260923.json)。
+安装与数据准备见下文；[历史变体](docs/action_head_variants.md)和[实验结果](docs/results.md)单独保存。
 
-## 代码入口
-
-- 主推 LIBERO 配方：`python -m experiments.libero.train_action_head --variant spike_driven_lightaug`；[固定训练参数](experiments/libero/configs/action_head_variants.json)。
-- [动作头实现](turbovla/models/full_state_action_head.py)、[Shiftmax](turbovla/models/shiftmax_action_head.py)、[模型组装](turbovla/models/turbovla.py)。
-- [训练专用轻量增强](turbovla/data/light_augmentation.py)在师生图像分支之前共同执行，评测与 EMA 统计刷新不增强。
-- 统一入口只启动 fresh 训练，不会自动刷新 EMA 或评测；数据、私人权重与服务器控制器未发布。Meta-World 40k 为独立单视角适配实验，其训练/评测入口不属于上述 LIBERO 命令。
-
-历史 ANN 基线及逐模块消融结果保留在[配置与结果档案](docs/score_configurations.md)和[历史结果](docs/results.md)，但不作为主推架构的 benchmark 展示。主推架构的 LIBERO 92.05% 也不是仓库所有架构中的最高值；历史 ANN 头曾达到 92.35%。
-
-## 模型与训练入口
+## 扩展与历史入口
 
 <a id="historical-results"></a>
 
@@ -35,7 +28,7 @@ LIBERO 分套为 Spatial 90.4%、Object 98.6%、Goal 97.2%、Long 82.0%。这两
 | 新版 Spike Cross：`train_spike_text_only` | SDT-V3 19M | SmoothSpike T4 | 脉冲投影、旧 Spike Cross、脉冲文本块 | ANN |
 | 新版 Spike Cross + Spike Action Head：`train_spike_aa` | SDT-V3 19M | SmoothSpike T4 | 同新版 Spike Cross | 脉冲状态投影 / ACT |
 | 完整 WTA 融合版：`train_wta` | SDT-V3 19M | SmoothSpike T4 | 完整 Signed WTA 融合 | ANN |
-| 当前变体：`train_action_head` | SDT-V3 19M | SmoothSpike T4 | 新 A 上游；A-no-WTA单独替换文本路由 | Spike-Driven VLA / ANN基线 / WTA / Shiftmax消融 / minimal-cross / 渐进全头 |
+| 历史变体：`train_action_head` 的扩展名称 | SDT-V3 19M | SmoothSpike T4 | 固定上游或文本路由消融 | ANN基线 / WTA / Shiftmax消融 / minimal-cross / 渐进全头 |
 
 前四项通过 `python -m experiments.libero.run_experiment` 选择；脉冲融合与动作头使用独立入口，支持 `--dry-run` 预览，需要显式批准训练。各脉冲融合版本完成训练后先用训练数据刷新 EMA 的 BN，再评估。[历史入口](docs/training_variants.md) · [当前 Action Head 入口](docs/action_head_variants.md)
 

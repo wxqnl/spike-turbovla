@@ -1,6 +1,6 @@
-# Spike-Driven VLA
+# spike-driven-vla
 
-This is the promoted action-head architecture in this repository. Its public name is **Spike-Driven VLA**; the supported LIBERO training recipe is `--variant spike_driven_lightaug`. The earlier unaugmented recipe remains available as `--variant spike_driven` for comparison. The original internal action-head type string is retained for checkpoint compatibility.
+This is the project's only promoted base architecture. Use `--variant spike-driven-vla` for the LIBERO recipe. The older `spike_driven_lightaug` command remains an alias for the same recipe; the unaugmented `spike_driven` run is retained among the extensions. Internal model and checkpoint keys keep their original values for compatibility.
 
 ## Architecture
 
@@ -8,7 +8,7 @@ The fixed upstream is SDT-V3 vision, SmoothSpike text at T=4, spike projections 
 
 Some state, value, residual and output paths remain continuous. “Spike-Driven” names the architecture family; it does **not** claim a fully event-driven implementation or measured energy savings.
 
-## Selected completed benchmarks
+## Completed benchmark snapshot (2026-09-23)
 
 | Benchmark | Training checkpoint | Result |
 | --- | --- | ---: |
@@ -23,12 +23,12 @@ The selected LIBERO run used 8 × 32, accumulation 1, global batch 256, 40,000 o
 
 During **training only**, every real RGB frame is translated by independently sampled integer x/y offsets in [-4,4] with edge padding, then brightness and contrast are independently scaled in [0.9,1.1]. The one augmented RGB frame feeds both teacher and student preprocessing branches. Labels, evaluation images, and the later EMA statistic refresh are unaugmented. Implementation: [augmentation](../turbovla/data/light_augmentation.py), [dataset integration](../turbovla/data/libero_lerobot.py), [parser](../turbovla/training/train_mixed.py).
 
-The portable entry is [train_action_head.py](../experiments/libero/train_action_head.py) with the [fixed recipe](../experiments/libero/configs/action_head_variants.json). After setting up the dependencies, data and public initialization described in the [LIBERO setup guide](../experiments/libero/README.md), preview the expanded arguments before starting a new run:
+The portable entry is [train_action_head.py](../experiments/libero/train_action_head.py) with the [base recipe](../experiments/libero/configs/spike_driven_vla.json). After setting up the dependencies, data and public initialization described in the [LIBERO setup guide](../experiments/libero/README.md), preview the expanded arguments before starting a new run:
 
 ```bash
 python -m experiments.libero.train_action_head \
-  --variant spike_driven_lightaug --world-size 8 --dry-run \
-  --run_dir "$SPIKE_RUN_ROOT/spike_driven_lightaug_40k" \
+  --variant spike-driven-vla --world-size 8 --dry-run \
+  --run_dir "$SPIKE_RUN_ROOT/spike_driven_vla_40k" \
   --vision_checkpoint "$SPIKE_VISION_CHECKPOINT" \
   --text_projection_init "$SPIKE_TEXT_INIT_DIR/text_projection.pth" \
   --max_steps 40000 --batch_size 32 --grad_accum_steps 1

@@ -1,8 +1,8 @@
-# 模型结构与实现边界
+# 历史架构路线
 
-更新：2026-09-11。本页对应已合入的模型代码；成功率与训练预算见[结果表](results.md)。
+本页记录早期架构组合，供追溯与消融比较。当前唯一主推 base 是 [spike-driven-vla](spike_driven.md)；下表不再代表项目主线。成功率与训练预算见[结果表](results.md)。
 
-## 五版主线
+## 早期五版路线
 
 | 模块 | 仅 Vision | + SmoothSpike | + Spike Cross（旧版） | + Spike Cross（新版） | + Spike Action Head |
 | --- | --- | --- | --- | --- | --- |
