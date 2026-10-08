@@ -9,9 +9,10 @@
 | base 模型组装 | [turbovla/models/turbovla.py](turbovla/models/turbovla.py) |
 | base 动作头、Shiftmax | [full_state_action_head.py](turbovla/models/full_state_action_head.py)、[shiftmax_action_head.py](turbovla/models/shiftmax_action_head.py) |
 | LIBERO base 配方 | [spike_driven_vla.json](experiments/libero/configs/spike_driven_vla.json) |
+| Meta-World MT50 公共评测 | [单视角 benchmark](experiments/mt50/public_benchmark/README.md) |
 | 其他组合 | [扩展模块](turbovla/models/extensions/)、[扩展配方](experiments/libero/configs/extensions/action_head_variants.json) |
 
-LIBERO 新实验入口：`python -m experiments.libero.train_action_head --variant spike-driven-vla`。旧名 `spike_driven_lightaug` 仍解析为同一训练配方；新运行的 checkpoint 文件前缀为 `spike_driven_vla`，已有文件与内部模型字段不改，以保持加载兼容。训练入口不自动运行 EMA 刷新或评测。公共 MT50 使用相同架构的单视角适配；本仓库不包含其独立训练/评测适配器。
+LIBERO 新实验入口：`python -m experiments.libero.train_action_head --variant spike-driven-vla`。旧名 `spike_driven_lightaug` 仍解析为同一训练配方；新运行的 checkpoint 文件前缀为 `spike_driven_vla`，已有文件与内部模型字段不改，以保持加载兼容。训练入口不自动运行 EMA 刷新或评测。公共 MT50 使用相同架构的单视角适配；评测协议和入口见上方链接。
 
 安装与数据准备见下文；[历史变体](docs/action_head_variants.md)和[实验结果](docs/results.md)单独保存。
 
