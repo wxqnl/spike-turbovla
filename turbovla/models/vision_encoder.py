@@ -115,6 +115,9 @@ class DINOv3VisionEncoder(nn.Module):
             return tokens[:, self.prefix_tokens :, :]
         if tokens.shape[1] == expected_patches:
             return tokens
+        # ViTs without register tokens (DeiT, plain ViT) carry only a CLS (or CLS + distillation) prefix.
+        if tokens.shape[1] - expected_patches in (1, 2) and not hasattr(self.backbone.config, "num_register_tokens"):
+            return tokens[:, tokens.shape[1] - expected_patches :, :]
         raise RuntimeError(
             f"DINOv3 produced {tokens.shape[1]} tokens; expected {expected_patches} patches "
             f"or {expected_patches + self.prefix_tokens} tokens including prefixes"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from contextlib import nullcontext
 from typing import Any, Mapping, Sequence
 
@@ -119,6 +120,11 @@ class TurboVLA(nn.Module):
             dropout=config.vision.dropout,
         )
 
+        if config.action.ifr_locate or config.action.ifr_spatial or config.action.ifr_sign_field:  # views x (grid x grid)
+            grid = math.isqrt(self.vision_encoder.num_patches)
+            if grid * grid != self.vision_encoder.num_patches:
+                raise ValueError("ifr_locate / ifr_spatial / ifr_sign_field need a square patch grid")
+            config.action.ifr_locate_views, config.action.ifr_locate_grid = self.num_views, grid
         if config.vision.position_embedding == "learned_patch":
             self.view_embedding = nn.Parameter(torch.zeros(1, self.num_views, 1, hidden_dim))
             self.patch_position_embedding = nn.Parameter(
@@ -127,7 +133,8 @@ class TurboVLA(nn.Module):
             self.patch_position_scale = nn.Parameter(
                 torch.full((1, self.num_views, 1, 1), float(config.vision.position_scale_init))
             )
-            nn.init.trunc_normal_(self.patch_position_embedding, std=config.vision.position_init_std)
+            with torch.random.fork_rng(devices=[]):  # every other module keeps the RNG stream of the view-only model
+                nn.init.trunc_normal_(self.patch_position_embedding, std=config.vision.position_init_std)
         else:
             self.view_embedding = nn.Parameter(torch.zeros(1, self.num_views, hidden_dim))
             self.register_parameter("patch_position_embedding", None)
@@ -215,8 +222,8 @@ class TurboVLA(nn.Module):
                 )
                 head.load_common(self.action_head)
                 self.action_head = head
-        elif config.action.head_type in {"deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn"}:
-            if config.action.head_type in {"full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn"}:
+        elif config.action.head_type in {"deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn", "full_spike_state8_shiftmax_continuous_inputs_softmax_cross"}:
+            if config.action.head_type in {"full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn", "full_spike_state8_shiftmax_continuous_inputs_softmax_cross"}:
                 from .shiftmax_action_head import FullStateShiftmaxActionHead as Head
             elif config.action.head_type == "full_spike_state8_wta":
                 from .full_state_action_head import FullStateSpikeActionHead as Head
@@ -405,7 +412,7 @@ class TurboVLA(nn.Module):
         return_distillation_features: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, Any]:
         spike_action_head = self.config.action.head_type in {
-            "spike_sdsa", "deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn",
+            "spike_sdsa", "deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn", "full_spike_state8_shiftmax_continuous_inputs_softmax_cross",
         }
         need_features = return_distillation_features or spike_action_head
         encoded = self.encode_condition(
@@ -549,6 +556,14 @@ def build_turbovla(args: TurboVLAConfig | Mapping[str, Any] | Any) -> TurboVLA:
                 spike_state_population=int(_arg(args, "spike_state_population", 0)),
                 spike_state_population_range=float(_arg(args, "spike_state_population_range", 4.0)),
                 spike_state_attention_gain=float(_arg(args, "spike_state_attention_gain", 1.0)),
+                ifr_integrate=bool(_arg(args, "ifr_integrate", False)),
+                ifr_shift=int(_arg(args, "ifr_shift", 0)),
+                ifr_split_state=bool(_arg(args, "ifr_split_state", False)),
+                ifr_locate=bool(_arg(args, "ifr_locate", False)),
+                ifr_spatial=int(_arg(args, "ifr_spatial", 0)),
+                ifr_norm_bits=int(_arg(args, "ifr_norm_bits", 0)),
+                ifr_sign_field=bool(_arg(args, "ifr_sign_field", False)),
+                ifr_context_levels=int(_arg(args, "ifr_context_levels", 0)),
                 action_dim=int(_arg(args, "action_dim", 7)),
                 state_dim=int(_arg(args, "state_dim", 8)),
                 horizon=int(_arg(args, "chunk_size", _arg(args, "action_horizon", 12))),

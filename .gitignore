@@ -49,3 +49,6 @@ credentials*.json
 /third_party/SmoothSpike/utils.py
 /third_party/SmoothSpike/convertor.py
 /third_party/Spike-Driven-Transformer-V3/SDT_V3/
+
+# Local launcher environment (copy of env.example.sh)
+experiments/libero/analysis/launch/env.sh

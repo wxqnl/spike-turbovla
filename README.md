@@ -2,6 +2,8 @@
 
 `spike-driven-vla` 是本项目唯一主推的 base 架构。它结合 SDT-V3、SmoothSpike、文本 Top-3 WTA、SDSA Cross，以及逐维连续状态输入和带脉冲 Q/K、Shiftmax、脉冲 FFN 的动作头。[结构说明](docs/spike_driven.md)。其余组合是扩展或消融。
 
+**v2 分支**：在 base 的脉冲动作头里加入 Spatially Grounded Spike Attention（SGSA，细化归一化 + 符号场），让动作跟着目标位置走，动作头仍是脉冲驱动。[方法、配方与结果](docs/v2_sgsa.md) · [分析脚本](experiments/libero/analysis/README.md)
+
 ## 代码导航
 
 | 内容 | 位置 |
@@ -10,6 +12,8 @@
 | base 动作头、Shiftmax | [full_state_action_head.py](turbovla/models/full_state_action_head.py)、[shiftmax_action_head.py](turbovla/models/shiftmax_action_head.py) |
 | LIBERO base 配方 | [spike_driven_vla.json](experiments/libero/configs/spike_driven_vla.json) |
 | Meta-World MT50 公共评测 | [单视角 benchmark](experiments/mt50/public_benchmark/README.md) |
+| v2 动作头（SGSA） | [shiftmax_action_head.py](turbovla/models/shiftmax_action_head.py) 的 `IFRCrossAttention`，[v2 配方](experiments/libero/configs/extensions/ifr.json) |
+| v2 分析与评测记录 | [experiments/libero/analysis](experiments/libero/analysis/README.md) |
 | 其他组合 | [扩展模块](turbovla/models/extensions/)、[扩展配方](experiments/libero/configs/extensions/action_head_variants.json) |
 
 LIBERO 新实验入口：`python -m experiments.libero.train_action_head --variant spike-driven-vla`。旧名 `spike_driven_lightaug` 仍解析为同一训练配方；新运行的 checkpoint 文件前缀为 `spike_driven_vla`，已有文件与内部模型字段不改，以保持加载兼容。训练入口不自动运行 EMA 刷新或评测。公共 MT50 使用相同架构的单视角适配；评测协议和入口见上方链接。

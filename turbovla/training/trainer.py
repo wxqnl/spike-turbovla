@@ -92,6 +92,24 @@ def parse_args():
     parser.add_argument("--spike_state_population", type=int, default=0)
     parser.add_argument("--spike_state_population_range", type=float, default=4.0)
     parser.add_argument("--spike_state_attention_gain", type=float, default=1.0)
+    parser.add_argument("--ifr_integrate", action="store_true",
+                        help="Integrate-and-Fire Routing: route on spike matches integrated over timesteps")
+    parser.add_argument("--ifr_shift", type=int, default=0,
+                        help="Integrate-and-Fire Routing: shift cross-attention scores right by this many bits")
+    parser.add_argument("--position_embedding", choices=["view", "learned_patch"], default="view",
+                        help="Visual token position: one embedding per camera, or also one per patch")
+    parser.add_argument("--ifr_split_state", action="store_true",
+                        help="Integrate-and-Fire Routing: separate Shiftmax for the robot-state tokens")
+    parser.add_argument("--ifr_locate", action="store_true",
+                        help="Integrate-and-Fire Routing: the head's cross-attention also reads where it attends")
+    parser.add_argument("--ifr_spatial", type=int, default=0, choices=[0, 3, 5],
+                        help="Integrate-and-Fire Routing: integrate visual scores over k x k patch neighborhoods")
+    parser.add_argument("--ifr_norm_bits", type=int, default=0,
+                        help="Integrate-and-Fire Routing: Shiftmax normalizer exponent rounded to 1/2**bits")
+    parser.add_argument("--ifr_sign_field", action="store_true",
+                        help="Integrate-and-Fire Routing: +-1 spatial patterns on half of the visual value channels")
+    parser.add_argument("--ifr_context_levels", type=int, default=0,
+                        help="Integrate-and-Fire Routing: integer context events in [-levels, levels], soft reset")
     parser.add_argument("--distill_text_weight", type=float, default=0.0,
                         help="Relative masked MSE on projected text tokens; frozen ANN teacher is training-only.")
     parser.add_argument("--precision", type=str, default="fp32", choices=["fp32", "bf16_amp"])
@@ -159,9 +177,10 @@ def parse_args():
                         help="Explicit approval after reviewing the v2 architecture; off by default")
     parser.add_argument("--cross_timesteps", type=int, default=4)
     parser.add_argument("--cross_gradient_checkpointing", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--action_head_gradient_checkpointing", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--action_head_type", choices=[
         "ann", "spike_sdsa", "minimal_cross_wta", "progressive_full_wta", "hybrid_spike_ffn", "deep_spike_wta",
-        "full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn",
+        "full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn", "full_spike_state8_shiftmax_continuous_inputs_softmax_cross",
     ], default="ann")
     parser.add_argument("--spike_state_encoding", choices=["perdim_plif", "multithreshold", "project_then_plif", "perdim_ann"], default="perdim_plif")
     parser.add_argument("--continuous_state", action="store_true",
@@ -304,6 +323,7 @@ def build_model_architecture(args):
             setattr(model_args, name, getattr(args, name))
     model_args.cross_timesteps = getattr(args, "cross_timesteps", 4)
     model_args.cross_gradient_checkpointing = getattr(args, "cross_gradient_checkpointing", True)
+    model_args.action_head_gradient_checkpointing = getattr(args, "action_head_gradient_checkpointing", True)
     model_args.text_dropout = args.text_dropout
     model_args.fusion_dropout = args.fusion_dropout
     model_args.fusion_droppath = args.fusion_droppath
@@ -313,6 +333,14 @@ def build_model_architecture(args):
     model_args.spike_state_population = getattr(args, "spike_state_population", 0)
     model_args.spike_state_population_range = getattr(args, "spike_state_population_range", 4.0)
     model_args.spike_state_attention_gain = getattr(args, "spike_state_attention_gain", 1.0)
+    model_args.ifr_integrate = getattr(args, "ifr_integrate", False)
+    model_args.ifr_shift = getattr(args, "ifr_shift", 0)
+    model_args.ifr_split_state = getattr(args, "ifr_split_state", False)
+    model_args.ifr_locate = getattr(args, "ifr_locate", False)
+    model_args.ifr_spatial = getattr(args, "ifr_spatial", 0)
+    model_args.ifr_norm_bits = getattr(args, "ifr_norm_bits", 0)
+    model_args.ifr_sign_field = getattr(args, "ifr_sign_field", False)
+    model_args.ifr_context_levels = getattr(args, "ifr_context_levels", 0)
     model_args.act_dropout = 0.0 if args.action_head_type == "spike_sdsa" else 0.1
     model_args.action_dim = args.action_dim
     model_args.chunk_size = args.chunk_size
@@ -324,7 +352,7 @@ def build_model_architecture(args):
     model_args.dinov3_precision = args.vision_precision or getattr(args, "dinov3_precision", "bf16_autocast")
     model_args.num_views = 2
     model_args.image_size = args.vision_image_size or args.expected_image_size
-    model_args.position_embedding = "view"
+    model_args.position_embedding = getattr(args, "position_embedding", "view")
     model_args.encode_views_separately = True
     model_args.padding_strategy = "key_padding_mask"
     return build_turbovla(model_args)

@@ -87,6 +87,22 @@ class ActionHeadConfig:
     spike_state_population: int = 0
     spike_state_population_range: float = 4.0
     spike_state_attention_gain: float = 1.0
+    # Integrate-and-Fire Routing in the Shiftmax head's cross-attention; all off = original head
+    ifr_integrate: bool = False
+    ifr_shift: int = 0
+    ifr_split_state: bool = False
+    # locate: the head also reads where it attends (position values on the visual tokens); layout set by the model
+    ifr_locate: bool = False
+    ifr_locate_views: int = 0
+    ifr_locate_grid: int = 0
+    # spatial: integrate each visual score over its k x k patch neighborhood before Shiftmax (0 = off, 3 or 5)
+    ifr_spatial: int = 0
+    # norm_bits: Shiftmax normalizer exponent rounded to 1/2**bits (0 = integer, the original)
+    ifr_norm_bits: int = 0
+    # sign_field: half of each head's visual value channels multiplied by fixed +-1 spatial patterns of their patch
+    ifr_sign_field: bool = False
+    # context_levels: the cross-attention context neuron fires integer events in [-levels, levels], soft reset (0 = off)
+    ifr_context_levels: int = 0
     action_dim: int = 7
     state_dim: int = 8
     horizon: int = 12
@@ -201,9 +217,23 @@ class TurboVLAConfig:
             raise ValueError("interaction.compute_precision must be fp32 or bf16_autocast")
         if self.action.action_dim < 1 or self.action.state_dim < 1 or self.action.horizon < 1:
             raise ValueError("action dimensions and horizon must be positive")
-        if self.action.head_type not in {"ann", "spike_sdsa", "minimal_cross_wta", "progressive_full_wta", "hybrid_spike_ffn", "deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn"}:
+        if self.action.head_type not in {"ann", "spike_sdsa", "minimal_cross_wta", "progressive_full_wta", "hybrid_spike_ffn", "deep_spike_wta", "full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn", "full_spike_state8_shiftmax_continuous_inputs_softmax_cross"}:
             raise ValueError("Unknown action head type")
-        coordinate_heads = {"full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn"}
+        if (self.action.ifr_integrate or self.action.ifr_shift or self.action.ifr_split_state or self.action.ifr_locate
+                or self.action.ifr_spatial or self.action.ifr_norm_bits or self.action.ifr_sign_field
+                or self.action.ifr_context_levels):
+            if self.action.head_type not in {"full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs",
+                                             "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn"}:
+                raise ValueError("Integrate-and-Fire Routing applies to the spiking Shiftmax heads only")
+            if self.action.ifr_shift < 0:
+                raise ValueError("ifr_shift must be nonnegative")
+            if self.action.ifr_spatial not in {0, 3, 5}:
+                raise ValueError("ifr_spatial must be 0, 3 or 5")
+            if not 0 <= self.action.ifr_norm_bits <= 6:
+                raise ValueError("ifr_norm_bits must be in 0..6")
+            if not 0 <= self.action.ifr_context_levels <= 15:
+                raise ValueError("ifr_context_levels must be in 0..15")
+        coordinate_heads = {"full_spike_state8_wta", "full_spike_state8_shiftmax", "full_spike_state8_shiftmax_continuous_inputs", "full_spike_state8_shiftmax_continuous_inputs_ann_ffn", "full_spike_state8_shiftmax_ann_ffn", "full_spike_state8_shiftmax_continuous_inputs_softmax_cross"}
         coordinate_ann = self.action.head_type in coordinate_heads and self.action.spike_state_encoding == "perdim_ann"
         if self.action.continuous_state and self.action.head_type not in {"spike_sdsa", "deep_spike_wta"} and not coordinate_ann:
             raise ValueError("continuous_state applies to the spike-body action heads")

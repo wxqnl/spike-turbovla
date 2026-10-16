@@ -155,15 +155,17 @@ def _build_manual_rgb_normalizer(
     return processor
 
 
-def build_dinov3_manual_processor(local_dinov3_path: str):
+def build_dinov3_manual_processor(local_dinov3_path: str, image_size: int = EXPECTED_IMAGE_SIZE):
+    """HF ViT normalization; a policy trained below the 256px render size gets the training-time bicubic resize."""
     cfg = load_preprocessor_config(local_dinov3_path)
     return _build_manual_rgb_normalizer(
         image_mean=cfg.get("image_mean", [0.485, 0.456, 0.406]),
         image_std=cfg.get("image_std", [0.229, 0.224, 0.225]),
         rescale_factor=cfg.get("rescale_factor", 1.0 / 255.0),
-        expected_size=EXPECTED_IMAGE_SIZE,
+        expected_size=int(image_size),
         patch_size=DINO_PATCH_SIZE,
         backbone_name="DINOv3",
+        resize_input=int(image_size) != EXPECTED_IMAGE_SIZE,
     )
 
 
@@ -461,7 +463,9 @@ class TurboVLAPolicy:
                 )
             config.text.local_files_only = not allow_hf_download
             self.text_encoder_type = config.text.encoder_type
-            if config.vision.encoder_type == "dinov3":
+            if config.vision.encoder_type == "dinov3" and not os.path.isdir(config.vision.model_name_or_path or ""):
+                # As in training, dinov3_path supplies the image processor; the backbone stays the one the
+                # policy was trained with (e.g. a DeiT) whenever its recorded directory exists here.
                 config.vision.model_name_or_path = self.dinov3_path
             config.vision.local_files_only = not allow_hf_download
             config.vision.compute_precision = "bf16" if self.precision == "bf16" else "fp32"
@@ -505,7 +509,7 @@ class TurboVLAPolicy:
         self.vision_processor = (
             build_sdtv3_manual_processor()
             if self.vision_encoder_type == "sdtv3_19m"
-            else build_dinov3_manual_processor(self.dinov3_path)
+            else build_dinov3_manual_processor(self.dinov3_path, self.model.config.vision.image_size)
         )
         self.dinov3_processor = self.vision_processor
 
